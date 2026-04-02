@@ -1,0 +1,10 @@
+[10:39:09] INFO     Initializing Playwright browser...                                                                                     
+[10:39:10] INFO     Opening LMS login page...                                                                                              
+           ERROR    Login failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:8000/login.html                               
+                    Call log:                                                                                                              
+                      - navigating to "http://localhost:8000/login.html", waiting until "networkidle"                                      
+                                                                                                                                           
+[10:39:12] INFO     Artifacts saved: errors/error_login_critical_failure_1775106550.png                                                    
+           INFO     Current URL: chrome-error://chromewebdata/                                                                             
+           ERROR    Automation stopped due to error: Failed to log in. Check credentials or network.                                       
+           INFO     Cleaning up browser context...                                                                                         

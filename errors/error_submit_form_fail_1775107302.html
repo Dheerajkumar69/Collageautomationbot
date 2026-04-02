@@ -1,0 +1,1083 @@
+<!DOCTYPE html><html lang="en"><!--<![endif]--><!-- BEGIN HEAD --><head>
+        <meta charset="utf-8">
+<title>1 | ADAMAS UNIVERSITY</title>
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta content="width=device-width, initial-scale=1" name="viewport">
+<meta content="UMS, University Management System, Bodoland, Bodoland University" name="description">
+<meta content="" name="author">
+<meta name="csrf-token" content="6KycvlRJFbXPggxTeb0Q54Bh3rmLXzlvRLH5cDEk">
+
+<!-- BEGIN PAGE FIRST SCRIPTS -->
+<script src="https://adamasknowledgecity.ac.in/public/themes/back/global/plugins/pace/pace.min.js" type="text/javascript"></script>
+<!-- END PAGE FIRST SCRIPTS -->
+<!-- BEGIN PAGE TOP STYLES -->
+<link href="https://adamasknowledgecity.ac.in/public/themes/back/global/plugins/pace/themes/pace-theme-flash.css" rel="stylesheet" type="text/css">
+
+<!-- BEGIN GLOBAL MANDATORY STYLES -->
+<link href="https://fonts.googleapis.com/css?family=Open+Sans:400,300,600,700&amp;subset=all" rel="stylesheet" type="text/css">
+<link href="https://adamasknowledgecity.ac.in/public/themes/common/global/plugins/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+<link href="https://adamasknowledgecity.ac.in/public/themes/common/global/plugins/simple-line-icons/simple-line-icons.min.css" rel="stylesheet" type="text/css">
+<link href="https://adamasknowledgecity.ac.in/public/themes/common/global/plugins/bootstrap/css/bootstrap.min.css" rel="stylesheet" type="text/css">
+<link href="https://adamasknowledgecity.ac.in/public/themes/common/global/plugins/bootstrap-switch/css/bootstrap-switch.min.css" rel="stylesheet" type="text/css">
+<!-- END GLOBAL MANDATORY STYLES -->
+<!-- BEGIN PAGE LEVEL PLUGINS -->
+<link href="https://adamasknowledgecity.ac.in/public/themes/common/global/plugins/select2/css/select2.min.css" rel="stylesheet" type="text/css">
+<link href="https://adamasknowledgecity.ac.in/public/themes/common/global/plugins/select2/css/select2-bootstrap.min.css" rel="stylesheet" type="text/css">
+<link href="https://adamasknowledgecity.ac.in/public/themes/common/global/plugins/bootstrap-toastr/toastr.min.css" rel="stylesheet" type="text/css">
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+<!-- END PAGE LEVEL PLUGINS -->
+<!-- BEGIN THEME GLOBAL STYLES -->
+<link href="https://adamasknowledgecity.ac.in/public/themes/student/global/css/components-rounded.min.css" rel="stylesheet" id="style_components" type="text/css">
+<link href="https://adamasknowledgecity.ac.in/public/themes/student/global/css/plugins.min.css" rel="stylesheet" type="text/css">
+<!-- END THEME GLOBAL STYLES -->
+<!-- BEGIN PAGE LEVEL STYLES -->
+<style type="text/css">
+.question-list li {
+    font-size: 17px;
+}
+
+.slider {
+    margin-top: 0px;
+}
+.s-value span {
+    font-size: 15px;
+}
+.yellow-color {
+    color: #e1e103;
+}
+.label-success {
+    background-color: #5cb85c;
+}
+
+/* Subject-specific feedback styling */
+.subject-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.subject-header h3 {
+    margin: 0;
+    font-weight: 600;
+}
+
+.subject-header p {
+    margin: 5px 0 0;
+    opacity: 0.9;
+}
+
+.class-time-tabs .nav-tabs {
+    border-bottom: 2px solid #667eea;
+}
+
+.class-time-tabs .nav-tabs > li > a {
+    border-radius: 8px 8px 0 0;
+    font-weight: 500;
+    color: #667eea;
+}
+
+.class-time-tabs .nav-tabs > li.active > a,
+.class-time-tabs .nav-tabs > li.active > a:hover,
+.class-time-tabs .nav-tabs > li.active > a:focus {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border-color: #667eea;
+}
+
+.class-info-card {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+    border-left: 4px solid #667eea;
+}
+
+.feedback-already-given {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    color: white;
+    padding: 15px;
+    border-radius: 8px;
+    text-align: center;
+    margin: 20px 0;
+}
+
+.feedback-form-section {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+</style>
+<!-- END PAGE LEVEL STYLES -->
+<!-- BEGIN THEME LAYOUT STYLES -->
+<link href="https://adamasknowledgecity.ac.in/public/themes/student/layouts/layout/css/layout.css" rel="stylesheet" type="text/css">
+<link href="https://adamasknowledgecity.ac.in/public/themes/student/layouts/layout/css/themes/default.min.css" rel="stylesheet" type="text/css" id="style_color">
+<link href="https://adamasknowledgecity.ac.in/public/themes/student/layouts/layout/css/custom.css" rel="stylesheet" type="text/css">
+<!-- END THEME LAYOUT STYLES -->
+<link rel="shortcut icon" href="favicon.ico"> 
+    </head>
+    <!-- END HEAD -->
+
+    <body class="page-container-bg-solid page-header-fixed page-sidebar-closed-hide-logo  pace-done"><div class="pace  pace-inactive"><div class="pace-progress" data-progress-text="100%" data-progress="99" style="transform: translate3d(100%, 0px, 0px);">
+  <div class="pace-progress-inner"></div>
+</div>
+<div class="pace-activity"></div></div>
+        <div class="page-wrapper">
+            <!-- BEGIN HEADER -->
+            <!-- BEGIN HEADER -->
+<div class="page-header navbar navbar-fixed-top">
+    <!-- BEGIN HEADER INNER -->
+    <div class="page-header-inner ">
+        <!-- BEGIN LOGO -->
+        <div class="page-logo">
+            <a href="https://adamasknowledgecity.ac.in/student/dashboard" class="logo show-mobile">
+                
+             <img width="80" height="73" src="https://adamasknowledgecity.ac.in/public/media/clients/au_logo.png" alt="logo" class="logo-default" style="margin:0px 10px 0 49px;"> </a>
+            <!-- <div class="menu-toggler sidebar-toggler"> -->
+                <!-- DOC: Remove the above "hide" to enable the sidebar toggler button on header -->
+            <!-- </div> -->
+        </div>
+        <!-- END LOGO -->
+        <!-- BEGIN RESPONSIVE MENU TOGGLER -->
+        <a href="javascript:;" class="menu-toggler responsive-toggler" data-toggle="collapse" data-target=".navbar-collapse"> </a>
+        <!-- END RESPONSIVE MENU TOGGLER -->
+        
+        <!-- BEGIN PAGE TOP -->
+        <div class="page-top">
+            <!-- BEGIN TOP NAVIGATION MENU -->
+            <div class="top-menu">
+                <ul class="nav navbar-nav pull-right">
+                    <li class="separator hide"> </li>
+                    <!-- BEGIN NOTIFICATION DROPDOWN -->
+                    <!-- DOC: Apply "dropdown-dark" class after below "dropdown-extended" to change the dropdown styte -->
+                    <!-- DOC: Apply "dropdown-hoverable" class after "dropdown" and remove data-toggle="dropdown" data-hover="dropdown" data-close-others="true" attributes to enable hover dropdown mode -->
+                    <!-- DOC: Remove "dropdown-hoverable" and add data-toggle="dropdown" data-hover="dropdown" data-close-others="true" attributes to the below A element with dropdown-toggle class -->
+                    <li class="dropdown dropdown-extended dropdown-notification dropdown-dark" id="header_notification_bar">
+                        <a href="javascript:;" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true">
+                            <i class="icon-bell"></i>
+                            <span class="badge badge-success"> 0 </span>
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li class="external">
+                                <h3>
+                                    <span class="bold">12 pending</span> notifications</h3>
+                                <a href="#">view all</a>
+                            </li>
+                        </ul>
+                    </li>
+                    <!-- END NOTIFICATION DROPDOWN -->
+                    <li class="separator hide"> </li>
+                    <!-- BEGIN INBOX DROPDOWN -->
+                    <!-- DOC: Apply "dropdown-dark" class after below "dropdown-extended" to change the dropdown styte -->
+                    <li class="dropdown dropdown-extended dropdown-inbox dropdown-dark" id="header_inbox_bar">
+                        <a href="javascript:;" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true">
+                            <i class="icon-envelope-open"></i>
+                            <span class="badge badge-danger"> 0 </span>
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li class="external">
+                                <h3>You have
+                                    <span class="bold">7 New</span> Messages</h3>
+                                <a href="#">view all</a>
+                            </li>
+                        </ul>
+                    </li>
+                    <!-- END INBOX DROPDOWN -->
+                    <li class="separator hide"> </li>
+                    <!-- BEGIN TODO DROPDOWN -->
+                    <!-- DOC: Apply "dropdown-dark" class after below "dropdown-extended" to change the dropdown styte -->
+                    <li class="dropdown dropdown-extended dropdown-tasks dropdown-dark" id="header_task_bar">
+                        <a href="javascript:;" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true">
+                            <i class="icon-calendar"></i>
+                            <span class="badge badge-primary"> 0 </span>
+                        </a>
+                        <ul class="dropdown-menu extended tasks">
+                            <li class="external">
+                                <h3>You have
+                                    <span class="bold">12 pending</span> tasks</h3>
+                                <a href="?p=page_todo_2">view all</a>
+                            </li>
+                        </ul>
+                    </li>
+                    <!-- END TODO DROPDOWN -->
+                    <!-- BEGIN USER LOGIN DROPDOWN -->
+                    <!-- DOC: Apply "dropdown-dark" class after below "dropdown-extended" to change the dropdown styte -->
+                    <li class="dropdown dropdown-user dropdown-dark">
+                        <a href="javascript:;" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true">
+                            <span class="username username-hide-on-mobile">  </span>
+                            <!-- DOC: Do not remove below empty space(&nbsp;) as its purposely used -->
+                            <!-- <img alt="" class="img-circle" src="/public61268539d26482286fdf02947e526dab.jpeg" />  -->
+                         <img alt="User Pic" src="https://ums-uat.s3.ap-south-1.amazonaws.com/admission_2024/61268539d26482286fdf02947e526dab.jpeg" class="img-circle"></a>
+                        <ul class="dropdown-menu dropdown-menu-default">
+                            <!-- <li>
+                                <a href="https://adamasknowledgecity.ac.in/student/account/profile-update"> <i class="icon-user"></i> My Profile </a>
+                            </li> -->
+                            <li>
+                                <a href="https://adamasknowledgecity.ac.in/student/account/changepassword"> <i class="icon-key"></i> Change Password </a>
+                            </li>
+                            <li>
+                                <a href="https://adamasknowledgecity.ac.in/student/logout"> <i class="icon-logout"></i> Log Out </a>
+                            </li>
+                        </ul>
+                    </li>
+                    <!-- END USER LOGIN DROPDOWN -->
+                    <!-- BEGIN QUICK SIDEBAR TOGGLER -->
+                    <li class="dropdown dropdown-extended quick-sidebar-toggler hidden">
+                        <span class="sr-only">Toggle Quick Sidebar</span>
+                        <i class="icon-logout"></i>
+                    </li>
+                    <!-- END QUICK SIDEBAR TOGGLER -->
+                </ul>
+            </div>
+            <!-- END TOP NAVIGATION MENU -->
+        </div>
+        <!-- END PAGE TOP -->
+    </div>
+    <!-- END HEADER INNER -->
+</div>
+<!-- END HEADER -->            <!-- END HEADER -->
+
+            <!-- BEGIN HEADER & CONTENT DIVIDER -->
+            <div class="clearfix"> </div>
+            <!-- END HEADER & CONTENT DIVIDER -->
+            <!-- BEGIN CONTAINER -->
+            <div class="page-container">
+                <!-- BEGIN SIDEBAR -->
+                <div class="page-sidebar-wrapper">
+    <!-- BEGIN SIDEBAR -->
+    <!-- DOC: Set data-auto-scroll="false" to disable the sidebar from auto scrolling/focusing -->
+    <!-- DOC: Change data-auto-speed="200" to adjust the sub menu slide up/down speed -->
+    <div class="page-sidebar navbar-collapse collapse">
+
+        <a href="https://adamasknowledgecity.ac.in/student/dashboard" class="logo show-desktop">
+                
+             <img width="150" src="https://adamasknowledgecity.ac.in/public/media/clients/au_logo.png" alt="logo" class="logo-default"> 
+
+             <!-- <span>IQ City <br/> Medical College</span> -->
+
+        </a>
+
+
+        <!-- BEGIN SIDEBAR MENU -->
+        <!-- DOC: Apply "page-sidebar-menu-light" class right after "page-sidebar-menu" to enable light sidebar menu style(without borders) -->
+        <!-- DOC: Apply "page-sidebar-menu-hover-submenu" class right after "page-sidebar-menu" to enable hoverable(hover vs accordion) sub menu mode -->
+        <!-- DOC: Apply "page-sidebar-menu-closed" class right after "page-sidebar-menu" to collapse("page-sidebar-closed" class must be applied to the body element) the sidebar sub menu mode -->
+        <!-- DOC: Set data-auto-scroll="false" to disable the sidebar from auto scrolling/focusing -->
+        <!-- DOC: Set data-keep-expand="true" to keep the submenues expanded -->
+        <!-- DOC: Set data-auto-speed="200" to adjust the sub menu slide up/down speed -->
+        <ul class="page-sidebar-menu " data-keep-expanded="false" data-auto-scroll="true" data-slide-speed="200">
+            <li class="nav-item ">
+                <a href="https://adamasknowledgecity.ac.in/student/dashboard" class="nav-link nav-toggle">
+                    <span class="custom-icon icon-envelope-open-o"></span>
+                    <span class="title">Dashboard</span>
+                                    </a>
+            </li>
+
+            
+            <li class="nav-item ">
+                <a href="javascript:;" class="nav-link nav-toggle">
+                    <span class="icon-user"></span>
+                    <span class="title">My Account</span>
+                                            <span class="arrow"></span>
+                                    </a>
+                <ul class="sub-menu">
+                    <li class="nav-item ">
+                        <a href="https://adamasknowledgecity.ac.in/student/account/personal-info" class="nav-link ">
+                            <span class="title">Personal Info</span>
+                                                    </a>
+                    </li>
+                    <li class="nav-item  ">
+                        <a href="https://adamasknowledgecity.ac.in/student/account/changepassword" class="nav-link ">
+                            <span class="title">Change Password</span>
+                        </a>
+                    </li>
+                    <li class="nav-item start ">
+                        <a href="https://adamasknowledgecity.ac.in/student/editdocumentsupload" class="nav-link nav-toggle">
+                            <!-- <i class="fa fa-cloud-upload fa-3x"></i> -->
+                            <span class="title">Uploaded Documents</span>
+                        </a>
+                    </li>
+                    
+                </ul>
+            </li>
+
+            <li class="nav-item ">
+                <a href="javascript:;" class="nav-link nav-toggle">
+                    <span class="custom-icon icon-copy"></span>
+                    <span class="title">Exams</span>
+                    
+                                            <span class="arrow"></span>
+                                    </a>
+                <ul class="sub-menu">
+                <li class="nav-item start ">
+                    <a href="https://adamasknowledgecity.ac.in/student/regexamenrollment" class="nav-link nav-toggle"> 
+                        <i class="fa fa-book fa-3x"></i> 
+                        <span class="title">Exam Enrollment</span>
+                    </a>
+                </li>
+                <li class="nav-item start ">
+                    <a href="https://adamasknowledgecity.ac.in/student/splsuppleexamenrollment" class="nav-link nav-toggle"> 
+                        <i class="fa fa-book fa-3x"></i>
+                       <span class="title">Special Supplementary Enrollment</span>
+                    </a>
+                </li>
+                
+                
+                <li class="nav-item  ">
+                                <a href="https://adamasknowledgecity.ac.in/student/review-or-scrutiny-listing" class="nav-link ">
+                                    <span class="title">Review Application</span>
+                                                                    </a>
+                </li>
+
+
+                </ul>
+            </li>
+
+            <li class="nav-item start ">
+                <a href="https://adamasknowledgecity.ac.in/student/result" class="nav-link nav-toggle"> 
+                    <span class="custom-icon icon-sidebar"></span>
+                    <span class="title">Result</span>
+                    <span class="arrow"></span>
+                </a>
+                <ul class="sub-menu">
+                    <li class="nav-item ">
+                        <a href="https://adamasknowledgecity.ac.in/student/result" class="nav-link">
+                            <span class="title">Semester Result</span>
+                        </a>
+                    </li>
+                    <li class="nav-item ">
+                        <a target="_blank" href="https://adamasknowledgecity.ac.in/student/provisional_certificate" class="nav-link">
+                            <span class="title">Provisional Certificate</span>
+                        </a>
+                    </li>
+                </ul>
+                
+            </li>
+
+            <li class="nav-item start ">
+                <a href="https://adamasknowledgecity.ac.in/student/qualification" class="nav-link nav-toggle">
+                    <span class="custom-icon icon-sidebar"></span>
+                    <span class="title">Previous Qualifications</span>
+                </a>
+            </li>
+
+           
+
+            
+            <li class="nav-item ">
+                <a href="javascript:;" class="nav-link nav-toggle">
+                    <span class="custom-icon icon-book"></span>
+                    <span class="title">Academics</span>
+                                            <span class="arrow"></span>
+                                    </a>
+                <ul class="sub-menu">
+                    
+                    <li class="nav-item  ">
+                        <a href="https://adamasknowledgecity.ac.in/student/my_programme" class="nav-link ">
+                            <span class="title">My Programme</span>
+                                                    </a>
+                    </li>
+                    <li class="nav-item  ">
+                        <a href="https://adamasknowledgecity.ac.in/student/my_courses" class="nav-link ">
+                            <span class="title">My Courses</span>
+                                                    </a>
+                    </li>
+                    <li class="nav-item start ">
+                        <a href="https://adamasknowledgecity.ac.in/student/courseallocation" class="nav-link nav-toggle">
+                            <!-- <i class="fa fa-calendar fa-3x"></i> -->
+                            <!-- <i class="fa fa-list-alt"></i> -->
+                            <span class="title">Course Selection</span>
+                        </a>
+                    </li>
+
+                    <li class="nav-item ">
+                        <a href="javascript:;" class="nav-link nav-toggle">
+                            <!-- <i class="fa fa-certificate"></i> -->
+                            <span class="title">My Application</span>
+                                                            <span class="arrow"></span>
+                                                    </a>
+                        <ul class="sub-menu">
+                            <li class="nav-item  ">
+                                <a href="https://adamasknowledgecity.ac.in/student/myapplication/miscellaneous_application" class="nav-link ">
+                                    <span class="title">Miscellaneous Application</span>
+                                                                    </a>
+                            </li>
+                        </ul>
+                    </li>
+
+                     <li class="nav-item ">
+                        <a href="javascript:;" class="nav-link nav-toggle">
+                            <i class="fa fa-money"></i>
+                            <span class="title">Academic Fees</span>
+                                                            <span class="arrow"></span>
+                                                    </a>
+                        <ul class="sub-menu">
+                            <li class="nav-item  ">
+                                <a href="https://adamasknowledgecity.ac.in/student/payment/report" class="nav-link ">
+                                    <span class="title">My Payment</span>
+                                                                    </a>
+                            </li>
+                            <li class="nav-item  ">
+                                <a href="https://adamasknowledgecity.ac.in/student/payment/invoicelist" class="nav-link ">
+                                    <span class="title">My Dues</span>
+                                                                    </a>
+                            </li>
+                            <!-- <li class="nav-item  ">
+                                <a href="https://adamasknowledgecity.ac.in/student/feesstatement_new" class="nav-link ">
+                                    <span class="title">My Fees Statement</span>
+                                                                    </a>
+                            </li>
+                            <li
+                                class="nav-item  ">
+                                <a href="https://adamasknowledgecity.ac.in/student/payment/pendinginvoicelist" class="nav-link ">
+                                    <span class="title">My Defaults</span>
+                                                                    </a>
+                            </li>
+							
+							<li class="nav-item  ">
+                                <a href="https://adamasknowledgecity.ac.in/student/payment/my-wallet" class="nav-link ">
+                                    <span class="title">My Wallet</span>
+                                                                    </a>
+                            </li> -->
+                        </ul>
+                    </li> 
+
+
+           
+
+
+                    <li class="nav-item start ">
+                        <a href="https://adamasknowledgecity.ac.in/student/holidaycalendar/view" class="nav-link nav-toggle">
+                            <i class="fa fa-calendar fa-3x"></i>
+                            <span class="title">Holiday Calendar</span>
+                        </a>
+                    </li>
+
+                    <li class="nav-item start ">
+                        <a href="https://adamasknowledgecity.ac.in/student/academiccalendar/view" class="nav-link nav-toggle">
+                            <i class="fa fa-calendar fa-3x"></i>
+                            <span class="title">Academic Calendar</span>
+                        </a>
+                    </li>
+                    <li class="nav-item start ">
+                        <a href="https://adamasknowledgecity.ac.in/student/routine" class="nav-link nav-toggle">
+                            <i class="fa fa-book fa-3x"></i>
+                            <span class="title">Class Routine</span>
+                        </a>
+                    </li>
+                    
+
+                    <li class="nav-item start ">
+                        <a href="https://adamasknowledgecity.ac.in/student/lessonplan" class="nav-link nav-toggle">
+                            <i class="fa fa-sticky-note fa-3x"></i>
+                            <span class="title">My Lesson Plan</span>
+                        </a>
+                    </li>
+
+
+                    <!-- <li class="nav-item start ">
+                        <a href="https://adamasknowledgecity.ac.in/student/assignment/list" class="nav-link nav-toggle">
+                            <i class="fa fa-sticky-note fa-3x"></i>
+                            <span class="title">Assignment</span>
+                        </a>
+                    </li> -->
+
+                    
+
+
+                     <!-- <li class="nav-item">
+                        <a href="layout_blank_page.html" class="nav-link ">
+                            <span class="title">Assignments</span>
+                        </a>
+                    </li>
+                    <li class="nav-item  ">
+                        <a href="layout_ajax_page.html" class="nav-link ">
+                            <span class="title">Attendance</span>
+                        </a>
+                    </li>
+                    <li class="nav-item  ">
+                        <a href="layout_language_bar.html" class="nav-link ">
+                            <span class="title">Time Table</span>
+                        </a>
+                    </li>  -->
+                </ul>
+            </li>
+            <li class="nav-item ">
+                    <a class="nav-link nav-toggle" href="javascript:;">
+                        <span class="custom-icon icon-Vector-2"></span>
+                        <span class="title">Hostel</span>
+                                                <span class="arrow"></span>
+                                            </a>
+				    <ul class="sub-menu">
+                        <li class="nav-item ">
+                            <a href="https://adamasknowledgecity.ac.in/student/hostel" class="nav-link nav-toggle">
+                                <i class="icon-list"></i>
+                                <span class="title">Application History</span>
+                                                            </a>
+                        </li>
+                        <li class="nav-item ">
+                            <a href="https://adamasknowledgecity.ac.in/student/hostelnew" class="nav-link nav-toggle">
+                                <i class="icon-list"></i>
+                                <span class="title">Application History New</span>
+                                                            </a>
+                        </li>
+                        <li class="nav-item ">
+                            <a href="https://adamasknowledgecity.ac.in/student/hostel/dues" class="nav-link nav-toggle">
+                                <i class="fa fa-book"></i>
+                                <span class="title">Hostel Dues</span>
+                                                            </a>
+                        </li>
+                         <li class="nav-item ">
+                            <a href="https://adamasknowledgecity.ac.in/student/hostelnew/dues" class="nav-link nav-toggle">
+                                <i class="fa fa-book"></i>
+                                <span class="title">Hostel Dues New</span>
+                                                            </a>
+                        </li>
+                        <li class="nav-item ">
+                            <a href="https://adamasknowledgecity.ac.in/student/hostel/applyroom" class="nav-link nav-toggle">
+                                <i class="fa fa-calendar-check-o"></i>
+                                <span class="title">Apply for Room</span>
+                                                            </a>
+                        </li>
+                         <li class="nav-item ">
+                            <a href="https://adamasknowledgecity.ac.in/student/hostel/applyroomnew" class="nav-link nav-toggle">
+                                <i class="fa fa-calendar-check-o"></i>
+                                <span class="title">Apply for New Room</span>
+                                                            </a>
+                        </li>
+                        <li class="nav-item ">
+                            <a href="https://adamasknowledgecity.ac.in/student/hostel/roomchange" class="nav-link nav-toggle">
+                                <i class="fa fa-exchange"></i>
+                                <span class="title">Apply for Room change</span>
+                                                            </a>
+                        </li>
+                        <li class="nav-item ">
+                            <a href="https://adamasknowledgecity.ac.in/student/hostel/hostelleft" class="nav-link nav-toggle">
+                                <i class="fa fa-sign-out"></i>
+                                <span class="title">Apply for Releasing</span>
+                                                            </a>
+                        </li>
+
+                        <li class="nav-item ">
+                            <a href="https://adamasknowledgecity.ac.in/student/hostel/leavelist" class="nav-link nav-toggle">
+                                <i class="icon-list"></i>
+                                <span class="title">Leave Application History</span>
+                                                            </a>
+                        </li>
+
+                        <li class="nav-item ">
+                            <a href="https://adamasknowledgecity.ac.in/student/hostel/hostelleave" class="nav-link nav-toggle">
+                                <i class="fa fa-edit"></i>
+                                <span class="title">Leave Application</span>
+                                                            </a>
+                        </li>
+
+                        <li class="nav-item ">
+                            <a href="https://adamasknowledgecity.ac.in/student/hostel/attendance" class="nav-link nav-toggle">
+                                <i class="fa fa-calendar"></i>
+                                <span class="title">Hostel Attendance</span>
+                                                            </a>
+                        </li>
+                    </ul>
+                </li>
+
+                <li class="nav-item ">
+                <a href="javascript:;" class="nav-link nav-toggle">
+                    <span class="custom-icon icon-truck"></span>
+                    <span class="title">Transport</span>
+                                            <span class="arrow"></span>
+                                    </a>
+                <ul class="sub-menu">
+					<li class="nav-item start ">
+						<a href="https://adamasknowledgecity.ac.in/student/transportApplication" class="nav-link nav-toggle"> 
+					
+							<span class="title">Transport Application</span>
+						</a>
+					</li>
+					<li class="nav-item start ">
+						<a href="https://adamasknowledgecity.ac.in/student/transportApplication/dues" class="nav-link nav-toggle"> 
+				
+							<span class="title">Transport Dues</span>
+						</a>
+					</li>
+                </ul>
+            </li> 
+
+
+            
+
+            
+
+            
+
+           
+
+            <li class="nav-item ">
+                <a href="javascript:;" class="nav-link nav-toggle">
+                    <span class="custom-icon icon-Vector"></span>
+                    <span class="title">Feedback</span>
+                                            <span class="arrow"></span>
+                                    </a>
+                <ul class="sub-menu">
+                    <li class="nav-item  ">
+                        <a href="https://adamasknowledgecity.ac.in/student/academicfeedback" class="nav-link ">
+                            <span class="title">Survey Feedback</span>
+                                                    </a>
+                    </li>
+                </ul>
+            </li>
+
+            
+
+            
+        
+            
+
+              <li class="nav-item ">
+
+                
+ 
+
+                <!--<li
+                                class="nav-item  ">
+                                <a href="https://adamasknowledgecity.ac.in/student/review-or-scrutiny-listing" class="nav-link ">
+                                    <span class="title">Review Application</span>
+                                                                    </a>
+                </li>
+                </ul>
+            </li>
+            <li class="nav-item start ">
+                <a href="https://adamasknowledgecity.ac.in/student/notifications" class="nav-link nav-toggle">
+                    <span class="custom-icon icon-ri_notification-line"></span>
+                    <span class="title">Notification</span>
+                </a>
+            </li>
+
+            <li class="nav-item ">
+                <a href="javascript:;" class="nav-link nav-toggle">
+                    <span class="custom-icon icon-truck"></span>
+                    <span class="title">Transport</span>
+                                            <span class="arrow"></span>
+                                    </a>
+                <ul class="sub-menu">
+					<li class="nav-item start ">
+						<a href="https://adamasknowledgecity.ac.in/student/transportApplication" class="nav-link nav-toggle"> -->
+							<!-- <i class="fa fa-book fa-3x"></i> -->
+							<!-- <span class="title">Transport Application</span>
+						</a>
+					</li>
+					<li class="nav-item start ">
+						<a href="https://adamasknowledgecity.ac.in/student/transportApplication/dues" class="nav-link nav-toggle"> -->
+							<!-- <i class="fa fa-book fa-3x"></i> -->
+							<!-- <span class="title">Transport Dues</span>
+						</a>
+					</li>
+                </ul>
+            </li> -->
+           
+            
+            
+            
+            <!-- <li class="nav-item ">
+                <a class="nav-link nav-toggle" href="javascript:;">
+                    <span class="custom-icon icon-Vector-1"></span>
+                    <span class="title">Library</span>
+                    <span class="selected"></span>
+                    <span class="arrow open"></span>
+                </a>
+                <ul class="sub-menu">
+                    <li class="nav-item ">
+                        <a href="https://adamasknowledgecity.ac.in/student/library-enrollment" class="nav-link nav-toggle" target="_blank">
+                            <i class="icon-note"></i>
+                            <span class="title">Library Enrollment</span>
+                                                    </a>
+                    </li>
+                    <li class="nav-item ">
+                        <a href="https://adamasknowledgecity.ac.in/student/library-card-lost" class="nav-link nav-toggle">
+                            <i class="icon-note"></i>
+                            <span class="title">Card Lost</span>
+                                                    </a>
+                    </li>
+                    <li class="nav-item ">
+                        <a href="https://adamasknowledgecity.ac.in/student/book-requisition" class="nav-link nav-toggle" target="_blank">
+                            <i class="icon-note"></i>
+                            <span class="title">Book Requisition</span>
+                                                    </a>
+                    </li>
+                    <li class="nav-item ">
+                        <a href="https://adamasknowledgecity.ac.in/student/my-cards" class="nav-link nav-toggle">
+                            <i class="fa fa-credit-card" aria-hidden="true"></i>
+                            <span class="title">My Cards</span>
+                                                    </a>
+                    </li>
+                </ul> -->
+            
+
+
+            
+			
+			
+
+
+<!--
+            <li class="nav-item ">
+                <a href="https://adamasknowledgecity.ac.in/student/grievance" class="nav-link ">
+                    <span class="fa fa-comments"></span>
+                    <span class="title">Grievance Application</span>
+                                    </a>
+            </li> -->
+
+            </li><li class="nav-item start">
+                <a href="https://adamasknowledgecity.ac.in/student/arivoo-callback?student_id=6613" class="nav-link nav-toggle">
+                    <span class="custom-icon icon-Vector-3"></span>
+                    <span class="title">LMS</span>
+                </a>
+            </li>
+
+
+            <li class="nav-item start">
+                <a href="https://adamasknowledgecity.ac.in/student/logout" class="nav-link nav-toggle">
+                    <span class="custom-icon icon-Vector-3"></span>
+                    <span class="title">Logout</span>
+                </a>
+            </li>
+        </ul>
+        <!-- END SIDEBAR MENU -->
+    </div>
+    <!-- END SIDEBAR -->
+</div>
+<!-- END SIDEBAR
+                <!-- END SIDEBAR -->
+
+                <!-- BEGIN CONTENT -->
+                <div class="page-content-wrapper">
+                    <!-- BEGIN CONTENT BODY -->
+                    <div class="page-content" style="min-height: 1193px;">
+                        <!-- BEGIN PAGE HEADER-->
+
+<!-- BEGIN PAGE BREADCRUMB -->
+<ul class="page-breadcrumb breadcrumb">
+    <li>
+        <a href="https://adamasknowledgecity.ac.in/student/dashboard">Home</a>
+        <i class="fa fa-circle"></i>
+    </li>
+    <li>
+        <a href="https://adamasknowledgecity.ac.in/student/academicfeedback">Class Feedback</a>
+        <i class="fa fa-circle"></i>
+    </li>
+    <li>
+        <span class="active">Give Feedback - Introduction to Machine Learning Lab</span>
+    </li>
+</ul>
+<!-- END PAGE BREADCRUMB -->
+<!-- END PAGE HEADER-->
+
+<div class="flash-message">
+ 
+     
+ 
+     
+ 
+     
+ 
+     
+ 
+</div>
+<!-- end .flash-message -->
+<!-- BEGIN PAGE BASE CONTENT -->
+<div class="row">
+    <div class="col-md-12">
+        <!-- Subject Header -->
+        <div class="subject-header">
+            <h3>Introduction to Machine Learning Lab (CSE12207)</h3>
+            <p><i class="fa fa-calendar"></i> Feedback for 21 Jan 2026</p>
+            <p><i class="fa fa-info-circle"></i> 1 class found for this subject</p>
+        </div>
+
+        <div class="class-time-tabs">
+            <!-- Form Start -->
+            <form action="https://adamasknowledgecity.ac.in/student/academicfeedback/save-multiple-feedback/4" method="post" class="horizontal-form" id="feedback_form">
+                <input type="hidden" name="_token" value="6KycvlRJFbXPggxTeb0Q54Bh3rmLXzlvRLH5cDEk" style="">
+
+                <!-- Tabs Header -->
+                <ul class="nav nav-tabs">
+                                            <li class="active">
+                            <a href="#class_0" data-toggle="tab">
+                                <i class="fa fa-clock-o"></i>
+                                Period 3
+                                <br>
+                                <small>11:30:00 - 12:25:00</small>
+                            </a>
+                        </li>
+                                    </ul>
+
+                <!-- Tabs Content -->
+                <div class="tab-content">
+                                            <div class="tab-pane active" id="class_0">
+                            <div class="portlet light">
+                                <!-- Class Information Card -->
+                                <div class="class-info-card">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <strong><i class="fa fa-user"></i> Faculty:</strong> Sayantan Singha Roy (55774)
+                                        </div>
+                                        <div class="col-md-6">
+                                            <strong><i class="fa fa-book"></i> Subject:</strong> Introduction to Machine Learning Lab (CSE12207)
+                                        </div>
+                                    </div>
+                                    <div class="row" style="margin-top: 10px;">
+                                        <div class="col-md-6">
+                                            <strong><i class="fa fa-calendar"></i> Date:</strong> 21-01-2026
+                                        </div>
+                                        <div class="col-md-6">
+                                            <strong><i class="fa fa-clock-o"></i> Class Time:</strong> 11:30:00 - 12:25:00 (Period 3)
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Feedback Form Content -->
+                                <div class="feedback-form-section">
+                                    <!-- Hidden Inputs -->
+                                    <input type="hidden" name="t_rel_fs_student_feedback_student_relation_id[]" value="4739635" style="">
+                                    <input type="hidden" name="t_rel_regular_class_period_id[]" value="72850" style="">
+
+                                    <div class="row">
+                                        <div class="col-md-12">
+                                                                                            
+                                                                                                    <!-- Display feedback for the current tab -->
+                                                    <div class="feedback-already-given">
+                                                        <h4><i class="fa fa-check-circle"></i> Feedback Already Submitted</h4>
+                                                        <p>You have already provided feedback for this class period.</p>
+                                                    </div>
+                                                    
+                                                    <ol type="1" class="question-list">
+                                                                                                                    <li>
+                                                                Class conducted as per schedule 
+
+                                                                                                                                    <div class="row mt-2">
+                                                                        <div class="col-md-12 text-center">
+                                                                                                                                                            <span class="badge bg-secondary fs-6">
+                                                                                    <i class="bi bi-question-circle"></i> Not Answered
+                                                                                </span>
+                                                                                                                                                    </div>
+                                                                    </div>
+                                                                                                                            </li>
+                                                                                                                    <li>
+                                                                Your level of understanding of the class
+
+                                                                                                                                    <div class="slidecontainer row">
+                                                                        <div class="s-range col-md-10">
+                                                                            <input type="range" min="1" max="5" value="5" class="slider" disabled="" style="">
+                                                                        </div>
+                                                                        <div class="s-value col-md-2">
+                                                                            
+                                                                                                                                                            <span class="label label-primary">5 <i class="bi bi-emoji-smile"></i></span>
+                                                                            
+                                                                            
+                                                                                                                                                    </div>
+                                                                    </div>
+                                                                                                                            </li>
+                                                                                                                    <li>
+                                                                Teacher's communication and clarity of lecture
+
+                                                                                                                                    <div class="slidecontainer row">
+                                                                        <div class="s-range col-md-10">
+                                                                            <input type="range" min="1" max="5" value="5" class="slider" disabled="" style="">
+                                                                        </div>
+                                                                        <div class="s-value col-md-2">
+                                                                            
+                                                                                                                                                            <span class="label label-primary">5 <i class="bi bi-emoji-smile"></i></span>
+                                                                            
+                                                                            
+                                                                                                                                                    </div>
+                                                                    </div>
+                                                                                                                            </li>
+                                                                                                                    <li>
+                                                                Overall class experience
+
+                                                                                                                                    <div class="slidecontainer row">
+                                                                        <div class="s-range col-md-10">
+                                                                            <input type="range" min="1" max="5" value="5" class="slider" disabled="" style="">
+                                                                        </div>
+                                                                        <div class="s-value col-md-2">
+                                                                            
+                                                                                                                                                            <span class="label label-primary">5 <i class="bi bi-emoji-smile"></i></span>
+                                                                            
+                                                                            
+                                                                                                                                                    </div>
+                                                                    </div>
+                                                                                                                            </li>
+                                                                                                                    <li>
+                                                                Availability of study materials/class assignments/projects
+
+                                                                                                                                    <div class="row mt-2">
+                                                                        <div class="col-md-12 text-center">
+                                                                                                                                                            <span class="badge bg-secondary fs-6">
+                                                                                    <i class="bi bi-question-circle"></i> Not Answered
+                                                                                </span>
+                                                                                                                                                    </div>
+                                                                    </div>
+                                                                                                                            </li>
+                                                                                                            </ol>
+                                                                                                                                    </div>
+                                    </div>
+
+                                    <!-- Remarks Section -->
+                                                                    </div>
+                            </div>
+                        </div>
+                                    </div>
+
+                <!-- Form Actions -->
+                <div class="form-actions text-center" style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px;">
+                                            <div class="alert alert-success">
+                            <i class="fa fa-check-circle"></i> You have already submitted feedback for this subject.
+                        </div>
+                        <button type="button" onclick="window.close()" class="btn btn-default btn-lg">
+                            <i class="fa fa-times"></i> Close
+                        </button>
+                                    </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+                    </div>
+                    <!-- END CONTENT BODY -->
+                </div>
+                <!-- END CONTENT -->
+            </div>
+            <!-- END CONTAINER -->
+            <!-- BEGIN FOOTER -->
+            <div class="page-footer">
+           <!--      <div class="page-footer-inner"> 2026 &copy; 
+                    <a target="_blank" href="javascript:;">ADAMAS UNIVERSITY</a>
+                </div>
+                
+            </div> -->
+
+            <div class="scroll-to-top">
+                    <i class="icon-arrow-up"></i>
+                </div>
+            <!-- END FOOTER -->
+        </div>
+        <!--[if lt IE 9]>
+        <script src="https://adamasknowledgecity.ac.in/public/themes/common/global/plugins/respond.min.js"></script>
+        <script src="https://adamasknowledgecity.ac.in/public/themes/common/global/plugins/excanvas.min.js"></script> 
+        <script src="https://adamasknowledgecity.ac.in/public/themes/common/global/plugins/ie8.fix.min.js"></script> 
+        <![endif]-->
+        <!-- BEGIN CORE PLUGINS -->
+        <script src="https://adamasknowledgecity.ac.in/public/themes/common/global/plugins/jquery.min.js" type="text/javascript"></script>
+        <script src="https://adamasknowledgecity.ac.in/public/themes/common/global/plugins/bootstrap/js/bootstrap.min.js" type="text/javascript"></script>
+        <script src="https://adamasknowledgecity.ac.in/public/themes/common/global/plugins/js.cookie.min.js" type="text/javascript"></script>
+        <script src="https://adamasknowledgecity.ac.in/public/themes/common/global/plugins/jquery-slimscroll/jquery.slimscroll.min.js" type="text/javascript"></script>
+        <script src="https://adamasknowledgecity.ac.in/public/themes/common/global/plugins/jquery.blockui.min.js" type="text/javascript"></script>
+        <script src="https://adamasknowledgecity.ac.in/public/themes/common/global/plugins/bootstrap-switch/js/bootstrap-switch.min.js" type="text/javascript"></script>
+        <!-- END CORE PLUGINS -->
+        <!-- BEGIN PAGE LEVEL PLUGINS -->
+        <script src="https://adamasknowledgecity.ac.in/public/themes/common/global/plugins/bootstrap-toastr/toastr.min.js" type="text/javascript"></script>
+        <script src="https://adamasknowledgecity.ac.in/public/themes/common/global/plugins/select2/js/select2.full.min.js" type="text/javascript"></script>
+
+        
+                <!-- END PAGE LEVEL PLUGINS -->    
+        <!-- BEGIN THEME GLOBAL SCRIPTS -->
+        <script src="https://adamasknowledgecity.ac.in/public/themes/student/global/scripts/app.js" type="text/javascript"></script>
+        <!-- END THEME GLOBAL SCRIPTS -->
+        <!-- BEGIN PAGE LEVEL PLUGINS -->
+        <script type="text/javascript">
+        $(function(){
+            $.ajaxSetup({
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                }
+            });
+
+            $.fn.select2.defaults.set("theme", "bootstrap");
+
+            $(".select2, .select2-multiple").select2({
+                placeholder: "Select",
+                width: null
+            });
+
+            $(".select2-allow-clear").select2({
+                allowClear: true,
+                placeholder: "Select",
+                width: null
+            });
+
+            toastr.options = {
+                "closeButton": true,
+                "debug": false,
+                "positionClass": "toast-top-right", //toast-bottom-full-width
+                "onclick": null,
+                "showDuration": "1000",
+                "hideDuration": "1000",
+                "timeOut": "5000",
+                "extendedTimeOut": "1000",
+                "showEasing": "swing",
+                "hideEasing": "linear",
+                "showMethod": "fadeIn",
+                "hideMethod": "fadeOut",
+                "progressBar": true,
+            }
+
+            
+            
+        });
+        </script>
+        <script>
+    function nextTab(currentIndex) {
+        document.querySelector('a[href="#class_' + (currentIndex + 1) + '"]').click();
+    }
+    
+    jQuery(document).ready(function() {
+        $(document).on('input', '.slider', function(e) {
+            let slideVal = e.target.value;
+
+            const labelSpan = e.target.parentElement.parentElement.querySelector('.s-value .label');
+            if (labelSpan) {
+                // Update label based on the slider value
+                if (slideVal >= 8) {
+                    labelSpan.className = "label label-success";
+                    labelSpan.innerHTML = `${slideVal} <i class="bi bi-emoji-heart-eyes"></i>`;
+                } else if (slideVal >= 5) {
+                    labelSpan.className = "label label-success";
+                    labelSpan.innerHTML = `${slideVal} <i class="bi bi-emoji-smile"></i>`;
+                } else if (slideVal >= 3) {
+                    labelSpan.className = "label label-warning";
+                    labelSpan.innerHTML = `${slideVal} <i class="bi bi-emoji-expressionless"></i>`;
+                } else {
+                    labelSpan.className = "label label-danger";
+                    labelSpan.innerHTML = `${slideVal} <i class="bi bi-emoji-angry"></i>`;
+                }
+            }
+        });
+
+        // Auto-focus on first tab when page loads
+        $('.nav-tabs a:first').tab('show');
+        
+        // Add smooth transitions between tabs
+        $('.nav-tabs a').on('shown.bs.tab', function (e) {
+            $(e.target.getAttribute('href')).addClass('fade-in');
+        });
+    });
+</script>
+        <!-- END PAGE LEVEL PLUGINS -->
+        <!-- BEGIN THEME LAYOUT SCRIPTS -->
+        <script src="https://adamasknowledgecity.ac.in/public/themes/student/layouts/layout/scripts/layout.min.js" type="text/javascript"></script>
+        <script src="https://adamasknowledgecity.ac.in/public/themes/student/layouts/layout/scripts/demo.min.js" type="text/javascript"></script>
+        <script src="https://adamasknowledgecity.ac.in/public/themes/student/layouts/global/scripts/quick-sidebar.min.js" type="text/javascript"></script>
+        <script src="https://adamasknowledgecity.ac.in/public/themes/student/layouts/global/scripts/quick-nav.min.js" type="text/javascript"></script>
+        <!-- END THEME LAYOUT SCRIPTS -->
+
+        <script>
+    var FRONT_THEME_PATH = "https://adamasknowledgecity.ac.in/public/themes/front";
+</script>
+    
+
+</div></body></html>

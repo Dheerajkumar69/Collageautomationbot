@@ -1,0 +1,240 @@
+<!DOCTYPE html><html lang="en"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Student Login</title>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous">
+</script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.12.9/dist/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous">
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous">
+</script>
+    <link rel="icon" type="image/x-icon" href="https://adamasknowledgecity.ac.in/public/themes/landing/images/favicon.png">
+    <style type="text/css">
+        @import  url("//netdna.bootstrapcdn.com/font-awesome/4.0.3/css/font-awesome.css");
+
+        .login-block {
+            background: #06a3da;
+            /* fallback for old browsers */
+            background: -webkit-linear-gradient(to bottom, #fff, #06a3da);
+            /* Chrome 10-25, Safari 5.1-6 */
+            background: linear-gradient(to bottom, #fff, #06a3da);
+            /* W3C, IE 10+/ Edge, Firefox 16+, Chrome 26+, Opera 12+, Safari 7+ */
+            float: left;
+            width: 100%;
+            padding: 74px 0;
+        }
+
+        .banner-sec {
+            background-size: cover;
+            min-height: 500px;
+            border-radius: 0 10px 10px 0;
+            padding: 0;
+        }
+
+        .container {
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 15px 20px 0px rgba(0, 0, 0, 0.1);
+        }
+
+        .carousel-inner {
+            border-radius: 0 10px 10px 0;
+        }
+
+        .carousel-caption {
+            text-align: left;
+            left: 5%;
+        }
+
+        .login-sec {
+            padding: 50px 30px;
+            position: relative;
+        }
+
+        .login-sec .copy-text {
+            position: absolute;
+            width: 80%;
+            bottom: 20px;
+            font-size: 13px;
+            text-align: center;
+        }
+
+        .login-sec .copy-text i {
+            color: #06a3da;
+        }
+
+        .login-sec .copy-text a {
+            color: #E36262;
+        }
+
+        .login-sec h2 {
+            margin-bottom: 30px;
+            font-weight: 800;
+            font-size: 30px;
+            color: #06a3da;
+        }
+
+        .login-sec h2:after {
+            content: " ";
+            width: 100px;
+            height: 5px;
+            background: #b1d8e7;
+            display: block;
+            margin-top: 20px;
+            border-radius: 3px;
+            margin-left: auto;
+            margin-right: auto
+        }
+
+        .btn-login {
+            background: #06a3da;
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .banner-text {
+            width: 70%;
+            position: absolute;
+            bottom: 40px;
+            padding-left: 20px;
+        }
+
+        .banner-text h2 {
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .banner-text h2:after {
+            content: " ";
+            width: 100px;
+            height: 5px;
+            background: #FFF;
+            display: block;
+            margin-top: 20px;
+            border-radius: 3px;
+        }
+
+        .banner-text p {
+            color: #fff;
+        }
+
+        .banner-img {
+            min-height: 499px
+        }
+    </style>
+</head>
+
+<body>
+    <section class="login-block">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-4 login-sec">
+                    
+                    <div class="d-flex" style="justify-content: center">
+                        <img style="height: 100px; width: 200px;  padding: 5px;" src="https://adamasknowledgecity.ac.in/public/frontPage/img/logo.png" alt="logo">
+                    </div>
+
+
+                    <form class="login-form" action="https://adamasknowledgecity.ac.in/student/login" method="post">
+                        <h6 class="form-title">Login to your account</h6>
+
+                        <input type="hidden" name="_token" value="vtxxp5VL6YgbxN6qrIEko8BwLAV1ZZazi5Yad2A1" style="">
+
+                                                <div class="flash-message">
+ 
+     
+ 
+     
+ 
+     
+ 
+     
+ 
+</div>
+<!-- end .flash-message -->
+                        <div class="form-group ">
+                            <!--ie8, ie9 does not support html5 placeholder, so we just show field title for that-->
+                            
+                            <div class="input-icon">
+                                
+                                <input class="form-control placeholder-no-fix" type="text" autocomplete="off" placeholder="Registration No." name="registration_no" style="">
+                            </div>
+                        </div>
+                        <div class="form-group ">
+                            
+                            <div class="input-icon">
+                                
+                                <input class="form-control placeholder-no-fix" type="password" autocomplete="off" placeholder="Password" name="password" style="">
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <!-- <label class="rememberme mt-checkbox mt-checkbox-outline">
+                            <input type="checkbox" name="remember" value="1" /> Remember me
+                            <span></span>
+                        </label> -->
+                            <button type="submit" class="btn btn-primary green" style="font-size: 0.8rem" id="login_btn" name="login" value="login" data-loading-text="&lt;i class='fa fa-spinner fa-spin'&gt;&lt;/i&gt; Logging in...">Login</button>
+                        </div>
+                        <div class="forget-password my-2">
+                            <h6>Forgot your password ?</h6>
+                            <p style="font-size: 0.8rem"> No worries, click <a href="https://adamasknowledgecity.ac.in/student/forgot-password" id="forget-password" class="sbold uppercase text-danger"> here </a> to reset your password. </p>
+                        </div>
+                    </form>
+
+                </div>
+                <div class="col-md-8 banner-sec">
+                    <div id="carouselExampleIndicators" class="carousel slide" data-ride="carousel">
+                        <ol class="carousel-indicators">
+                            <li data-target="#carouselExampleIndicators" data-slide-to="0" class="active"></li>
+                            <li data-target="#carouselExampleIndicators" data-slide-to="1"></li>
+                            <li data-target="#carouselExampleIndicators" data-slide-to="2"></li>
+                        </ol>
+                        <div class="carousel-inner" role="listbox">
+                            <div class="carousel-item active">
+                                <img class="d-block img-fluid banner-img" style="filter: brightness(0.5);object-fit:cover" src="https://adamasknowledgecity.ac.in/public/frontPage/img/studentAdamasLogin.jpg" alt="First slide">
+                                <div class="carousel-caption d-none d-md-block">
+                                    <div class="banner-text text-overlay-image">
+                                        <h2>
+                                            Welcome to Student Portal
+                                        </h2>
+                                        <p>Log in with your registration number and password.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="carousel-item">
+                                <img class="d-block img-fluid banner-img" style="filter: brightness(0.5);object-fit:cover" src="https://adamasknowledgecity.ac.in/public/frontPage/img/studentAdamasLogin2.jpg" alt="First slide">
+                                <div class="carousel-caption d-none d-md-block">
+                                    <div class="banner-text text-overlay-image">
+                                        <h2>
+                                            Welcome to Student Portal
+                                        </h2>
+                                        <p>Log in with your registration number and password.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="carousel-item">
+                                <img class="d-block img-fluid banner-img" style="filter: brightness(0.5);object-fit:cover" src="https://adamasknowledgecity.ac.in/public/frontPage/img/studentAdamasLogin3.jpg" alt="First slide">
+                                <div class="carousel-caption d-none d-md-block">
+                                    <div class="banner-text text-overlay-image">
+                                        <h2>
+                                            Welcome to Student Portal
+                                        </h2>
+                                        <p>Log in with your registration number and password.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </section>
+
+
+
+
+
+</body></html>

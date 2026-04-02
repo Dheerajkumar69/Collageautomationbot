@@ -1,0 +1,87 @@
+[09:58:19] INFO     Initializing Playwright browser...                                                                      
+[09:58:20] INFO     Opening LMS login page...                                                                               
+[09:58:22] INFO     [SUCCESS] Login successful.                                                                             
+           INFO     Navigating to Feedback section...                                                                       
+           INFO     Detecting subjects with pending feedback...                                                             
+[09:58:24] INFO     Found 2 subjects.                                                                                       
+           INFO     --- Processing Subject 1/2 ---                                                                          
+           INFO     Opening subject details for: Data Structures                                                            
+[09:58:26] INFO     Pending entries found: 2                                                                                
+           INFO     Submitting entry 1/2...                                                                                 
+[09:58:30] INFO     [SUCCESS] Feedback submitted.                                                                           
+[09:58:32] INFO     Submitting entry 2/2...                                                                                 
+[09:58:35] INFO     [SUCCESS] Feedback submitted.                                                                           
+[09:58:37] INFO     Navigating to Feedback section...                                                                       
+[09:58:47] ERROR    Failed to navigate to Feedback: Page.wait_for_selector: Timeout 10000ms exceeded.                       
+                    Call log:                                                                                               
+                      - waiting for locator("a:has-text(\"Feedback\"), span:has-text(\"Feedback\")") to be visible          
+                                                                                                                            
+           INFO     Saved error screenshot to errors/error_nav_feedback_failure_1775104127.png                              
+           INFO     Saved error HTML to errors/error_nav_feedback_failure_1775104127.html                                   
+           INFO     Current URL: http://localhost:8000/subject.html                                                         
+[09:58:48] INFO     --- Processing Subject 2/2 ---                                                                          
+[09:59:11] INFO     Opening subject details for: Subject 2                                                                  
+[09:59:54] INFO                                                                                                             
+                    Process interrupted by user.                                                                            
+           INFO     Cleaning up browser context...                                                                          
+Traceback (most recent call last):
+  File "/home/dheeraj/Code/actualproject/Collageautomationbot/main.py", line 58, in <module>
+    main()
+  File "/home/dheeraj/Code/actualproject/Collageautomationbot/main.py", line 55, in main
+    browser_manager.close()
+  File "/home/dheeraj/Code/actualproject/Collageautomationbot/bot/browser.py", line 36, in close
+    self.context.close()
+  File "/home/dheeraj/Code/actualproject/Collageautomationbot/.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py", line 13552, in close
+    return mapping.from_maybe_impl(self._sync(self._impl_obj.close(reason=reason)))
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/dheeraj/Code/actualproject/Collageautomationbot/.venv/lib/python3.12/site-packages/playwright/_impl/_sync_base.py", line 112, in _sync
+    while not task.done():
+              ^^^^^^^^^^^
+KeyboardInterrupt
+sys:1: RuntimeWarning: coroutine 'BrowserContext.close' was never awaited
+Exception ignored in: <bound method BaseEventLoop.call_exception_handler of <_UnixSelectorEventLoop running=False closed=True debug=False>>
+Traceback (most recent call last):
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 1854, in call_exception_handler
+  File "/usr/lib/python3.12/logging/__init__.py", line 1568, in error
+  File "/usr/lib/python3.12/logging/__init__.py", line 1684, in _log
+  File "/usr/lib/python3.12/logging/__init__.py", line 1700, in handle
+  File "/usr/lib/python3.12/logging/__init__.py", line 1762, in callHandlers
+  File "/usr/lib/python3.12/logging/__init__.py", line 1028, in handle
+  File "/home/dheeraj/Code/actualproject/Collageautomationbot/.venv/lib/python3.12/site-packages/rich/logging.py", line 144, in emit
+  File "/home/dheeraj/Code/actualproject/Collageautomationbot/.venv/lib/python3.12/site-packages/rich/traceback.py", line 401, in from_exception
+  File "/home/dheeraj/Code/actualproject/Collageautomationbot/.venv/lib/python3.12/site-packages/rich/traceback.py", line 468, in extract
+ImportError: sys.meta_path is None, Python is likely shutting down
+Exception ignored in: <bound method BaseEventLoop.call_exception_handler of <_UnixSelectorEventLoop running=False closed=True debug=False>>
+Traceback (most recent call last):
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 1854, in call_exception_handler
+  File "/usr/lib/python3.12/logging/__init__.py", line 1568, in error
+  File "/usr/lib/python3.12/logging/__init__.py", line 1684, in _log
+  File "/usr/lib/python3.12/logging/__init__.py", line 1700, in handle
+  File "/usr/lib/python3.12/logging/__init__.py", line 1762, in callHandlers
+  File "/usr/lib/python3.12/logging/__init__.py", line 1028, in handle
+  File "/home/dheeraj/Code/actualproject/Collageautomationbot/.venv/lib/python3.12/site-packages/rich/logging.py", line 144, in emit
+  File "/home/dheeraj/Code/actualproject/Collageautomationbot/.venv/lib/python3.12/site-packages/rich/traceback.py", line 401, in from_exception
+  File "/home/dheeraj/Code/actualproject/Collageautomationbot/.venv/lib/python3.12/site-packages/rich/traceback.py", line 468, in extract
+ImportError: sys.meta_path is None, Python is likely shutting down
+Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x75bcdc1845e0>
+Traceback (most recent call last):
+  File "/usr/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+  File "/usr/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+  File "/usr/lib/python3.12/asyncio/unix_events.py", line 767, in close
+  File "/usr/lib/python3.12/asyncio/unix_events.py", line 753, in write_eof
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 795, in call_soon
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 541, in _check_closed
+RuntimeError: Event loop is closed
+sys:1: RuntimeWarning: coroutine 'Locator.click' was never awaited
+Exception ignored in: <bound method BaseEventLoop.call_exception_handler of <_UnixSelectorEventLoop running=False closed=True debug=False>>
+Traceback (most recent call last):
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 1854, in call_exception_handler
+  File "/usr/lib/python3.12/logging/__init__.py", line 1568, in error
+  File "/usr/lib/python3.12/logging/__init__.py", line 1684, in _log
+  File "/usr/lib/python3.12/logging/__init__.py", line 1700, in handle
+  File "/usr/lib/python3.12/logging/__init__.py", line 1762, in callHandlers
+  File "/usr/lib/python3.12/logging/__init__.py", line 1028, in handle
+  File "/home/dheeraj/Code/actualproject/Collageautomationbot/.venv/lib/python3.12/site-packages/rich/logging.py", line 144, in emit
+  File "/home/dheeraj/Code/actualproject/Collageautomationbot/.venv/lib/python3.12/site-packages/rich/traceback.py", line 401, in from_exception
+  File "/home/dheeraj/Code/actualproject/Collageautomationbot/.venv/lib/python3.12/site-packages/rich/traceback.py", line 468, in extract
+ImportError: sys.meta_path is None, Python is likely shutting down

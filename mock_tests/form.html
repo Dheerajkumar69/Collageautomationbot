@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <h1>Feedback Form</h1>
+    <!-- Fake inputs -->
+    <button onclick="submitDelay()">Submit Feedback</button>
+    <div id="msg"></div>
+    <script>
+      function submitDelay() {
+        setTimeout(() => {
+          document.body.innerHTML += "<div class='alert-success'>Feedback submitted successfully</div>";
+          // Mock returning to the list
+          setTimeout(() => {
+            window.location.href = "subject.html";
+          }, 1000);
+        }, 500);
+      }
+    </script>
+</body>
+</html>
