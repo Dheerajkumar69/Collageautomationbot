@@ -18,18 +18,24 @@ export async function POST(req: NextRequest) {
   const writer = stream.writable.getWriter();
   const textEncoder = new TextEncoder();
 
+  let isClosed = false;
+
   const log = async (msg: string) => {
     console.log(msg);
+    if (isClosed) return;
     await writer.write(textEncoder.encode(`data: ${JSON.stringify({ type: "log", msg })}\n\n`));
   };
   
   const end = async () => {
+    if (isClosed) return;
+    isClosed = true;
     await writer.write(textEncoder.encode(`data: ${JSON.stringify({ type: "end" })}\n\n`));
     await writer.close();
   };
 
   const notifyError = async (msg: string) => {
     console.error(msg);
+    if (isClosed) return;
     await writer.write(textEncoder.encode(`data: ${JSON.stringify({ type: "error", msg })}\n\n`));
     await end();
   };
@@ -41,13 +47,14 @@ export async function POST(req: NextRequest) {
       const executablePath = await chromium.executablePath();
       
       browser = await puppeteer.launch({
-        args: chromium.args,
+        args: [...chromium.args, "--disable-blink-features=AutomationControlled"],
         defaultViewport: chromium.defaultViewport,
         executablePath: executablePath || (process.platform === "win32" ? "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" : (process.platform === "darwin" ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" : "/usr/bin/google-chrome")),
         headless: chromium.headless === "new" ? true : chromium.headless,
       });
 
       const page = await browser.newPage();
+      await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
       page.setDefaultTimeout(30000);
       page.setDefaultNavigationTimeout(30000);
 
