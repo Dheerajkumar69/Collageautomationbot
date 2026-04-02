@@ -1,4 +1,5 @@
 import time
+from typing import Iterable
 from urllib.parse import parse_qs, urlparse
 from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError
 from .logger import logger
@@ -328,14 +329,10 @@ class FeedbackProcessor:
     def _is_feedback_already_submitted(self) -> bool:
         """Check if the current page shows 'Feedback Already Submitted'."""
         try:
-            # Check for already submitted banner or message
-            already_submitted = safe_locator_or(self.page, [
+            return self._has_visible_match([
                 FeedbackFormSelectors.ALREADY_SUBMITTED_BANNER,
                 FeedbackFormSelectors.ALREADY_SUBMITTED_TEXT,
             ])
-            
-            # If any element with these selectors is visible, feedback was already submitted
-            return already_submitted.count() > 0
         except Exception as e:
             logger.debug(f"Could not check if feedback was already submitted: {e}")
             return False
@@ -343,14 +340,32 @@ class FeedbackProcessor:
     def _is_no_classes_for_selected_date_error(self) -> bool:
         """Check if LMS returned date-level feedback error after clicking Give Feedback."""
         try:
-            error_toast = safe_locator_or(self.page, [
+            # Toasts are rendered dynamically; give them a brief moment to appear.
+            time.sleep(0.4)
+            return self._has_visible_match([
                 FeedbackFormSelectors.NO_CLASSES_FOR_DATE_ERROR,
                 FeedbackFormSelectors.FEEDBACK_ERROR_TITLE,
             ])
-            return error_toast.count() > 0
         except Exception as e:
             logger.debug(f"Could not detect date-level feedback error: {e}")
             return False
+
+    def _has_visible_match(self, selectors: Iterable[str], max_scan: int = 6) -> bool:
+        """Return True if at least one selector resolves to a visible element."""
+        for selector in selectors:
+            try:
+                loc = self.page.locator(selector)
+                count = loc.count()
+                if count == 0:
+                    continue
+
+                for i in range(min(count, max_scan)):
+                    if loc.nth(i).is_visible():
+                        return True
+            except Exception:
+                continue
+
+        return False
 
     def _skip_current_feedback_date(self):
         """Skip the current date entry and return to the subject feedback list."""

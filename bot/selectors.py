@@ -44,10 +44,10 @@ class FeedbackFormSelectors:
     SUBMIT_BTN_FALLBACK_2 = 'button[type="submit"]'
     
     # Already submitted detection
-    ALREADY_SUBMITTED_BANNER = 'text="Feedback Already Submitted"'
-    ALREADY_SUBMITTED_TEXT = 'text="already provided feedback"'
+    ALREADY_SUBMITTED_BANNER = '.feedback-already-given:visible'
+    ALREADY_SUBMITTED_TEXT = '.feedback-already-given:visible p:has-text("already provided feedback")'
 
     # Date-level error after clicking Give Feedback
-    NO_CLASSES_FOR_DATE_ERROR = 'text="No classes found for this subject on the selected date."'
-    FEEDBACK_ERROR_TITLE = 'text="Feedback Error"'
+    NO_CLASSES_FOR_DATE_ERROR = '#toast-container .toast.toast-error .toast-message:has-text("No classes found for this subject on the selected date.")'
+    FEEDBACK_ERROR_TITLE = '#toast-container .toast.toast-error .toast-title:has-text("Feedback Error")'
     CLOSE_BTN = 'button:has-text("Close")'
