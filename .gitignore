@@ -42,3 +42,10 @@ next-env.d.ts
 
 # python virtual environment
 .venv/
+__pycache__/
+*.pyc
+
+# temporary debug files
+errors/
+error_login_*.html
+error_login_*.png
