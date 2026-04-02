@@ -48,9 +48,9 @@ export async function POST(req: NextRequest) {
       
       browser = await puppeteer.launch({
         args: [...chromium.args, "--disable-blink-features=AutomationControlled"],
-        defaultViewport: chromium.defaultViewport,
+        defaultViewport: { width: 1920, height: 1080 },
         executablePath: executablePath || (process.platform === "win32" ? "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" : (process.platform === "darwin" ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" : "/usr/bin/google-chrome")),
-        headless: chromium.headless === "new" ? true : chromium.headless,
+        headless: true,
       });
 
       const page = await browser.newPage();
