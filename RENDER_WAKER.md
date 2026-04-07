@@ -66,3 +66,5 @@ WAKER_TARGET_URL=https://your-backend.onrender.com /home/dheeraj/Code/actualproj
 - Keep interval below 900 seconds.
 - Check worker logs in Render for uptime confirmations.
 - If /health is removed or changed, update WAKER_ENDPOINTS accordingly.
+- The backend automation API runs one job at a time with FIFO queueing.
+- Queue depth defaults to 5 waiting jobs; additional submissions return HTTP 429.

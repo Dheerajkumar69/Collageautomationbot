@@ -2,7 +2,10 @@ import asyncio
 import os
 import re
 import sys
+from collections import deque
 from pathlib import Path
+from typing import Optional
+from uuid import uuid4
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +29,26 @@ app.add_middleware(
 PROJECT_ROOT = Path(__file__).parent.resolve()
 
 
+def _env_int(name: str, default: int, minimum: int = 1) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        parsed = int(raw)
+    except ValueError:
+        return default
+    return max(parsed, minimum)
+
+
+MAX_QUEUE_DEPTH = _env_int("RUN_QUEUE_MAX_DEPTH", 5)
+QUEUE_HEARTBEAT_SECONDS = _env_int("RUN_QUEUE_HEARTBEAT_SECONDS", 5)
+STREAM_HEARTBEAT_SECONDS = _env_int("RUN_STREAM_HEARTBEAT_SECONDS", 15)
+
+_RUN_QUEUE_CONDITION = asyncio.Condition()
+_ACTIVE_REQUEST_ID: Optional[str] = None
+_WAITING_REQUEST_IDS: deque[str] = deque()
+
+
 # ── Request schema ─────────────────────────────────────────────────────────────
 class RunRequest(BaseModel):
     username: str
@@ -42,39 +65,135 @@ class RunRequest(BaseModel):
 
 # ── ANSI stripper ──────────────────────────────────────────────────────────────
 _ANSI_RE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+_TOKEN_RE = re.compile(
+    r"(?i)\b(password|passwd|pwd|token|session|authorization|cookie)\s*[:=]\s*([^\s,;]+)"
+)
 
 
-def _strip_ansi(text: str) -> str:
-    return _ANSI_RE.sub("", text)
+def _sanitize_stream_line(text: str, username: str, password: str) -> str:
+    sanitized = _ANSI_RE.sub("", text)
+    for secret in (username, password):
+        if secret:
+            sanitized = sanitized.replace(secret, "[REDACTED]")
+    sanitized = _TOKEN_RE.sub(lambda m: f"{m.group(1)}=[REDACTED]", sanitized)
+    return sanitized
+
+
+async def _queue_enter(request_id: str) -> tuple[bool, int]:
+    """Return (accepted, queue_position). Position 0 means run immediately."""
+    global _ACTIVE_REQUEST_ID
+
+    async with _RUN_QUEUE_CONDITION:
+        if _ACTIVE_REQUEST_ID is None and not _WAITING_REQUEST_IDS:
+            _ACTIVE_REQUEST_ID = request_id
+            return True, 0
+
+        if len(_WAITING_REQUEST_IDS) >= MAX_QUEUE_DEPTH:
+            return False, -1
+
+        _WAITING_REQUEST_IDS.append(request_id)
+        return True, len(_WAITING_REQUEST_IDS)
+
+
+async def _queue_wait_for_turn(request_id: str):
+    while True:
+        position = 0
+        timed_out = False
+
+        async with _RUN_QUEUE_CONDITION:
+            if _ACTIVE_REQUEST_ID == request_id:
+                return
+
+            try:
+                position = _WAITING_REQUEST_IDS.index(request_id) + 1
+            except ValueError:
+                raise RuntimeError("Request was removed from queue before execution")
+
+            try:
+                await asyncio.wait_for(_RUN_QUEUE_CONDITION.wait(), timeout=QUEUE_HEARTBEAT_SECONDS)
+            except asyncio.TimeoutError:
+                timed_out = True
+
+        if timed_out:
+            yield f"data: [QUEUED] position={position}\n\n"
+            yield f"data: Waiting in queue (position {position})...\n\n"
+
+
+async def _queue_exit(request_id: str) -> None:
+    global _ACTIVE_REQUEST_ID
+
+    async with _RUN_QUEUE_CONDITION:
+        if _ACTIVE_REQUEST_ID == request_id:
+            if _WAITING_REQUEST_IDS:
+                _ACTIVE_REQUEST_ID = _WAITING_REQUEST_IDS.popleft()
+            else:
+                _ACTIVE_REQUEST_ID = None
+            _RUN_QUEUE_CONDITION.notify_all()
+            return
+
+        try:
+            _WAITING_REQUEST_IDS.remove(request_id)
+            _RUN_QUEUE_CONDITION.notify_all()
+        except ValueError:
+            pass
 
 
 # ── SSE generator ──────────────────────────────────────────────────────────────
-async def _run_bot_generator(username: str, password: str):
-    env = os.environ.copy()
-    env["LMS_USERNAME"]    = username
-    env["LMS_PASSWORD"]    = password
-    env["PYTHONUNBUFFERED"] = "1"      # no output buffering
-    env["NO_COLOR"]         = "1"      # suppress Rich / logging ANSI
-    env["FORCE_COLOR"]      = "0"
-    env["TERM"]             = "dumb"
-
-    process = await asyncio.create_subprocess_exec(
-        sys.executable,
-        "main.py",
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-        env=env,
-        cwd=str(PROJECT_ROOT),
-    )
+async def _run_bot_generator(username: str, password: str, request_id: str, initial_position: int):
+    process: asyncio.subprocess.Process | None = None
 
     try:
+        if initial_position > 0:
+            yield f"data: [QUEUED] position={initial_position}\n\n"
+            yield f"data: Request accepted. Queue position: {initial_position}\n\n"
+
+        async for queue_line in _queue_wait_for_turn(request_id):
+            yield queue_line
+
+        yield "data: [STARTED]\n\n"
+        yield "data: Execution slot acquired. Starting headless automation...\n\n"
+
+        env = os.environ.copy()
+        env["LMS_USERNAME"] = username
+        env["LMS_PASSWORD"] = password
+        env["PYTHONUNBUFFERED"] = "1"      # no output buffering
+        env["NO_COLOR"]         = "1"      # suppress Rich / logging ANSI
+        env["FORCE_COLOR"]      = "0"
+        env["TERM"]             = "dumb"
+        env["BOT_NON_INTERACTIVE"] = "1"
+        env["BOT_DISABLE_ERROR_ARTIFACTS"] = "1"
+        env["BOT_SERVER_MODE"] = "1"
+        env["REQUEST_ID"] = request_id
+
+        process = await asyncio.create_subprocess_exec(
+            sys.executable,
+            "main.py",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            env=env,
+            cwd=str(PROJECT_ROOT),
+        )
+
         assert process.stdout is not None
 
         while True:
-            line = await process.stdout.readline()
+            try:
+                line = await asyncio.wait_for(
+                    process.stdout.readline(),
+                    timeout=STREAM_HEARTBEAT_SECONDS,
+                )
+            except asyncio.TimeoutError:
+                yield "data: [HEARTBEAT]\n\n"
+                yield "data: Automation is still running...\n\n"
+                continue
+
             if not line:
                 break
-            text = _strip_ansi(line.decode("utf-8", errors="replace")).strip()
+            text = _sanitize_stream_line(
+                line.decode("utf-8", errors="replace").strip(),
+                username=username,
+                password=password,
+            )
             if text:
                 yield f"data: {text}\n\n"
 
@@ -87,13 +206,27 @@ async def _run_bot_generator(username: str, password: str):
             yield "data: [DONE]\n\n"
 
     except asyncio.CancelledError:
-        try:
-            process.terminate()
-            await asyncio.wait_for(process.wait(), timeout=5)
-        except Exception:
-            process.kill()
+        if process and process.returncode is None:
+            try:
+                process.terminate()
+                await asyncio.wait_for(process.wait(), timeout=5)
+            except Exception:
+                process.kill()
+                await process.wait()
         raise
+    except Exception as exc:
+        yield f"data: [ERROR] Server runtime failure: {exc}\n\n"
+        yield "data: [FAILED]\n\n"
+    finally:
+        if process and process.returncode is None:
+            try:
+                process.terminate()
+                await asyncio.wait_for(process.wait(), timeout=5)
+            except Exception:
+                process.kill()
+                await process.wait()
 
+        await _queue_exit(request_id)
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
 @app.get("/")
@@ -102,7 +235,15 @@ async def _run_bot_generator(username: str, password: str):
 @app.head("/health")
 def health():
     """Health check — used by Render and uptime monitors."""
-    return JSONResponse({"status": "ok", "service": "lms-auto-feedback"})
+    return JSONResponse(
+        {
+            "status": "ok",
+            "service": "lms-auto-feedback",
+            "activeRun": _ACTIVE_REQUEST_ID is not None,
+            "queuedRuns": len(_WAITING_REQUEST_IDS),
+            "maxQueueDepth": MAX_QUEUE_DEPTH,
+        }
+    )
 
 
 @app.post("/api/run")
@@ -111,14 +252,28 @@ async def run_bot(req: RunRequest):
     Accepts credentials, spawns main.py, and streams its stdout as SSE.
     The frontend reads the stream and renders each line in the live terminal.
     """
+    request_id = uuid4().hex[:10]
+    accepted, position = await _queue_enter(request_id)
+    if not accepted:
+        return JSONResponse(
+            {
+                "error": "Run queue is full. Please retry shortly.",
+                "maxQueueDepth": MAX_QUEUE_DEPTH,
+            },
+            status_code=429,
+        )
+
     headers = {
-        "Cache-Control":    "no-cache, no-store",
+        "Cache-Control":    "no-cache, no-store, must-revalidate",
+        "Pragma":           "no-cache",
+        "Expires":          "0",
+        "X-Request-Id":     request_id,
         "X-Accel-Buffering": "no",          # stop Nginx from buffering SSE
         "Connection":        "keep-alive",
         "Content-Type":      "text/event-stream",
     }
     return StreamingResponse(
-        _run_bot_generator(req.username, req.password),
+        _run_bot_generator(req.username, req.password, request_id, position),
         media_type="text/event-stream",
         headers=headers,
     )

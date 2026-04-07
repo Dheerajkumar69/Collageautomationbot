@@ -1,5 +1,6 @@
 import argparse
 import getpass
+import os
 import sys
 from bot.config import Config
 from bot.logger import logger, print_summary
@@ -7,6 +8,13 @@ from bot.browser import BrowserManager
 from bot.auth import AuthHandler
 from bot.navigation import NavigationHandler
 from bot.feedback import FeedbackProcessor
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 def parse_args():
     parser = argparse.ArgumentParser(description="LMS Feedback Automation Bot")
@@ -21,10 +29,18 @@ def main():
     config.headless = not args.headful
     config.dry_run = args.dry_run
     
-    # Prompt explicitly for credentials if missing
+    non_interactive = _env_flag("BOT_NON_INTERACTIVE") or _env_flag("BOT_SERVER_MODE")
+
+    # Prompt only in local interactive runs.
     if not config.username:
+        if non_interactive:
+            logger.error("Missing LMS_USERNAME in non-interactive mode.")
+            sys.exit(1)
         config.username = input("Registration No: ").strip()
     if not config.password:
+        if non_interactive:
+            logger.error("Missing LMS_PASSWORD in non-interactive mode.")
+            sys.exit(1)
         config.password = getpass.getpass("Password: ")
         
     if not config.validate_credentials():

@@ -1,3 +1,4 @@
+import fcntl
 import os
 import subprocess
 import sys
@@ -28,19 +29,29 @@ class BrowserManager:
     def _install_chromium(headless: bool) -> None:
         logger.warning("Chromium binary missing. Attempting Playwright install...")
 
-        cmd = [sys.executable, "-m", "playwright", "install"]
-        if headless:
-            # Headless shell is smaller and faster to download for server workloads.
-            cmd.extend(["--only-shell", "chromium"])
-        else:
-            cmd.append("chromium")
+        lock_path = "/tmp/collageauto_playwright_install.lock"
 
-        result = subprocess.run(
-            cmd,
-            env=os.environ.copy(),
-            capture_output=True,
-            text=True,
-        )
+        # Guard install across concurrent processes.
+        lock_file = open(lock_path, "w", encoding="utf-8")
+        try:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+
+            cmd = [sys.executable, "-m", "playwright", "install"]
+            if headless:
+                # Headless shell is smaller and faster to download for server workloads.
+                cmd.extend(["--only-shell", "chromium"])
+            else:
+                cmd.append("chromium")
+
+            result = subprocess.run(
+                cmd,
+                env=os.environ.copy(),
+                capture_output=True,
+                text=True,
+            )
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+            lock_file.close()
 
         if result.returncode != 0:
             stdout_tail = (result.stdout or "").strip()[-1200:]

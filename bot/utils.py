@@ -1,5 +1,6 @@
 import time
 import functools
+import os
 from pathlib import Path
 from typing import Callable, ParamSpec, Sequence, TypeVar
 from playwright.sync_api import Page, Locator, TimeoutError as PlaywrightTimeoutError
@@ -7,6 +8,13 @@ from .logger import logger
 
 P = ParamSpec("P")
 R = TypeVar("R")
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 def safe_locator_or(
     page: Page,
@@ -86,6 +94,10 @@ def with_retry(max_retries: int = 3, delay: float = 2.0):
 
 def save_error_artifacts(page: Page, step_name: str):
     """Saves HTML and a screenshot when something fails."""
+    if _env_flag("BOT_DISABLE_ERROR_ARTIFACTS") or _env_flag("BOT_SERVER_MODE"):
+        logger.debug("Skipping error artifacts in server mode.")
+        return
+
     try:
         Path("errors").mkdir(exist_ok=True)
         timestamp = int(time.time())

@@ -38,6 +38,24 @@ Options:
   --help          Show this help
 ```
 
+## Cloud API Runtime Behavior
+
+- API runs are always headless and non-interactive.
+- The backend executes one run at a time and uses FIFO queueing.
+- Maximum waiting queue depth is 5. Extra requests get HTTP 429.
+- While queued, frontend receives live queue position updates.
+- While running without new bot output, frontend receives heartbeat updates.
+- Error artifacts are disabled for server/API runs by default.
+
+### Relevant Runtime Env Vars (Render web service)
+
+- `RUN_QUEUE_MAX_DEPTH` (default `5`)
+- `RUN_QUEUE_HEARTBEAT_SECONDS` (default `5`)
+- `RUN_STREAM_HEARTBEAT_SECONDS` (default `15`)
+- `BOT_NON_INTERACTIVE` (default `1` in Render)
+- `BOT_DISABLE_ERROR_ARTIFACTS` (default `1` in Render)
+- `BOT_SERVER_MODE` (default `1` in Render)
+
 ## Environment Setup (First Time)
 
 1. **Enter project directory:**

@@ -252,6 +252,12 @@ export default function Home() {
 
       const ctrl = new AbortController();
       abortRef.current = ctrl;
+      let connectTimedOut = false;
+      const CONNECT_TIMEOUT_MS = 30_000;
+      const STALL_WARNING_MS = 45_000;
+      let lastChunkAt = Date.now();
+      let connectTimer: number | undefined;
+      let stallTimer: number | undefined;
 
       addLog("⚡  Connecting to automation server…");
 
@@ -260,19 +266,35 @@ export default function Home() {
           (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "") ||
           "http://localhost:8000";
 
+        connectTimer = window.setTimeout(() => {
+          connectTimedOut = true;
+          ctrl.abort();
+        }, CONNECT_TIMEOUT_MS);
+
         const response = await fetch(`${baseUrl}/api/run`, {
           method:  "POST",
           headers: { "Content-Type": "application/json" },
           body:    JSON.stringify({ username: u, password: p }),
           signal:  ctrl.signal,
         });
+        window.clearTimeout(connectTimer);
 
         if (!response.ok) {
           let errBody = "";
-          try { errBody = await response.text(); } catch { /* empty */ }
+          try {
+            errBody = await response.text();
+            errBody = errBody.replace(/\s+/g, " ").trim().slice(0, 220);
+          } catch {
+            /* empty */
+          }
           throw new Error(
             `Server returned ${response.status}${errBody ? `: ${errBody}` : ""}`
           );
+        }
+
+        const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
+        if (!contentType.includes("text/event-stream")) {
+          throw new Error(`Expected text/event-stream response, received: ${contentType || "unknown"}`);
         }
 
         if (!response.body) throw new Error("No response body received from server.");
@@ -285,6 +307,12 @@ export default function Home() {
         let   buffer  = "";
         let   finished = false;
         let   failed = false;
+
+        const parseDataLine = (line: string): string => {
+          if (line.startsWith("data: ")) return line.slice(6).trim();
+          if (line.startsWith("data:")) return line.slice(5).trim();
+          return "";
+        };
 
         const processEvent = (data: string) => {
           if (data === "[DONE]") {
@@ -304,12 +332,37 @@ export default function Home() {
             return;
           }
 
+          if (data.startsWith("[QUEUED]")) {
+            const position = data.match(/position=(\d+)/)?.[1];
+            addLog(position ? `⏳  In queue. Current position: ${position}` : "⏳  In queue...");
+            return;
+          }
+
+          if (data === "[STARTED]") {
+            addLog("▶  Queue cleared. Starting execution now...");
+            return;
+          }
+
+          if (data === "[HEARTBEAT]") {
+            return;
+          }
+
           addLog(data);
         };
+
+        stallTimer = window.setInterval(() => {
+          if (finished || failed) return;
+          if (Date.now() - lastChunkAt >= STALL_WARNING_MS) {
+            addLog("⚠  No new output recently. Job may still be running...");
+            lastChunkAt = Date.now();
+          }
+        }, 15_000);
 
         while (true) {
           const { value, done } = await reader.read();
           if (done) break;
+
+          lastChunkAt = Date.now();
 
           buffer += decoder.decode(value, { stream: true });
 
@@ -319,8 +372,7 @@ export default function Home() {
 
           for (const part of parts) {
             for (const line of part.split("\n")) {
-              if (!line.startsWith("data: ")) continue;
-              const data = line.slice(6).trim();
+              const data = parseDataLine(line);
               if (!data) continue;
 
               processEvent(data);
@@ -331,11 +383,14 @@ export default function Home() {
         // Flush remaining buffer
         if (buffer.trim()) {
           for (const line of buffer.split("\n")) {
-            if (!line.startsWith("data: ")) continue;
-            const data = line.slice(6).trim();
+            const data = parseDataLine(line);
             if (!data) continue;
             processEvent(data);
           }
+        }
+
+        if (stallTimer !== undefined) {
+          window.clearInterval(stallTimer);
         }
 
         if (!finished && !failed) {
@@ -346,8 +401,15 @@ export default function Home() {
         }
       } catch (err: unknown) {
         if (err instanceof DOMException && err.name === "AbortError") {
-          addLog("⛔  Automation stopped by user.");
-          setStatus("idle");
+          if (connectTimedOut) {
+            const timeoutMsg = "Connection timed out. Check backend URL or server health.";
+            addLog(`❌  ${timeoutMsg}`);
+            setErrorMsg(timeoutMsg);
+            setStatus("error");
+          } else {
+            addLog("⛔  Automation stopped by user.");
+            setStatus("idle");
+          }
         } else {
           const msg = err instanceof Error ? err.message : String(err);
           setErrorMsg(msg);
@@ -355,6 +417,12 @@ export default function Home() {
           setStatus("error");
         }
       } finally {
+        if (connectTimer !== undefined) {
+          window.clearTimeout(connectTimer);
+        }
+        if (stallTimer !== undefined) {
+          window.clearInterval(stallTimer);
+        }
         setIsRunning(false);
         abortRef.current = null;
       }
