@@ -1,5 +1,7 @@
+import re
 import time
-from typing import Iterable
+from html import unescape
+from typing import Any, Iterable
 from urllib.parse import parse_qs, urlparse
 from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError
 from .logger import logger
@@ -14,84 +16,71 @@ class FeedbackProcessor:
         self.config = config
         self.summary = ProgressSummary()
         self.blocked_entries_by_subject = {}
+        self.subject_targets: list[dict[str, Any]] = []
 
     def process_all(self) -> ProgressSummary:
         logger.info("Detecting subjects with pending feedback...")
-        
+
         try:
-            self.page.wait_for_load_state("networkidle", timeout=15000)
-            
-            # Try multiple subject selectors
-            subject_locators = safe_locator_or(self.page, [
-                FeedbackDashboardSelectors.SUBJECT_CARD_PRIMARY,
-                FeedbackDashboardSelectors.SUBJECT_CARD_FALLBACK_1,
-                FeedbackDashboardSelectors.SUBJECT_CARD_FALLBACK_2,
-                FeedbackDashboardSelectors.SUBJECT_CARD_FALLBACK_3,
-            ])
-            
-            # Wait for elements to attach
-            try:
-                subject_locators.first.wait_for(state="visible", timeout=10000)
-            except PlaywrightTimeoutError:
-                pass
-                
+            self._wait_for_feedback_dashboard_ready()
         except PlaywrightTimeoutError:
             logger.info("No subjects found or feedback dashboard structure unrecognized.")
             return self.summary
 
-        # To avoid Stale Element Reference, extract subject names first
-        subject_count = subject_locators.count()
+        subject_locators = self._resolve_subject_locators()
+        if subject_locators is None:
+            logger.info("No subjects found.")
+            return self.summary
+
+        self.subject_targets = self._collect_subject_targets(subject_locators)
+
+        # Last-resort fallback: preserve old behavior if aggressive filtering removed everything.
+        if not self.subject_targets:
+            raw_count = subject_locators.count()
+            for i in range(raw_count):
+                text = self._normalize_whitespace(subject_locators.nth(i).text_content() or "")
+                self.subject_targets.append({
+                    "raw_index": i,
+                    "name": text or f"Subject {i + 1}",
+                    "signature": f"idx:{i}",
+                    "declared_pending": None,
+                })
+
+        subject_count = len(self.subject_targets)
         self.summary.total_subjects_found = subject_count
-        
+
         if subject_count == 0:
             logger.info("No subjects found.")
             return self.summary
-            
-        subject_names = []
-        for i in range(subject_count):
-            try:
-                text = subject_locators.nth(i).text_content()
-                subject_names.append(text.strip() if text else f"Subject {i+1}")
-            except Exception as e:
-                logger.debug(f"Could not extract name for subject {i}: {e}")
-                subject_names.append(f"Subject {i+1}")
-            
+
         logger.info(f"Found {subject_count} subjects to process.")
 
-        for i, subject_name in enumerate(subject_names):
+        for i, subject in enumerate(self.subject_targets):
+            subject_name = subject["name"]
+
+            if subject.get("declared_pending") == 0:
+                logger.info(
+                    f"--- Skipping Subject {i+1}/{subject_count}: {subject_name} (dashboard reports no pending entries) ---"
+                )
+                continue
+
             logger.info(f"--- Processing Subject {i+1}/{subject_count}: {subject_name} ---")
             self._process_subject_by_index(i, subject_name)
-            
+
         return self.summary
 
     def _process_subject_by_index(self, subject_index: int, subject_name: str):
         """Process a single subject by its index to avoid stale element issues."""
         try:
-            # Re-fetch subject locators fresh to avoid stale references
-            subject_locators = safe_locator_or(self.page, [
-                FeedbackDashboardSelectors.SUBJECT_CARD_PRIMARY,
-                FeedbackDashboardSelectors.SUBJECT_CARD_FALLBACK_1,
-                FeedbackDashboardSelectors.SUBJECT_CARD_FALLBACK_2,
-                FeedbackDashboardSelectors.SUBJECT_CARD_FALLBACK_3,
-            ])
-            
-            subject_locator = subject_locators.nth(subject_index)
-            safe_click(subject_locator)
-            
-            # Wait for either buttons or some text indicating there are no pending feedbacks
-            time.sleep(2)  # Give animations time
-            
-            # Count pending feedback buttons
-            give_feedback_buttons = safe_locator_or(self.page, [
-                FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN,
-                FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN_FALLBACK,
-                FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN_FALLBACK_2,
-            ])
-            
-            pending_count = give_feedback_buttons.count()
+            self._open_subject_by_run_index(subject_index)
+
+            pending_count = self._count_current_pending_buttons()
             self.summary.total_pending_found += pending_count
             logger.info(f"Pending entries found: {pending_count}")
-            
+
+            if pending_count == 0 and self._count_disabled_pending_buttons() > 0:
+                logger.info("Pending entries exist but are currently unavailable due LMS time restrictions.")
+
             if pending_count == 0:
                 logger.info("No pending feedback for this subject.")
                 self._return_to_subject_list()
@@ -99,10 +88,10 @@ class FeedbackProcessor:
 
             # Register dialog handler once per subject
             self.page.once("dialog", lambda dialog: dialog.accept())
-            
+
             self._process_pending_feedbacks_sequentially(pending_count, subject_index)
             self._return_to_subject_list()
-            
+
         except Exception as e:
             logger.error(f"Failed to process subject '{subject_name}': {e}")
             self.summary.total_failed += 1
@@ -118,28 +107,21 @@ class FeedbackProcessor:
 
         while True:
             self._ensure_subject_dates_page(subject_index)
-            
-            # CRITICAL: Wait for page to stabilize before checking for buttons
-            time.sleep(1)
-            self.page.wait_for_load_state("networkidle", timeout=10000)
-            
-            # Re-fetch button count each iteration to detect DOM changes
-            give_feedback_btn_loc = safe_locator_or(self.page, [
-                FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN,
-                FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN_FALLBACK,
-                FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN_FALLBACK_2,
-            ])
-            
-            current_count = give_feedback_btn_loc.count()
-            
+
+            current_count = self._count_current_pending_buttons()
+
+            if current_count == 0 and self._count_disabled_pending_buttons() > 0:
+                logger.info("Remaining pending entries are currently unavailable (disabled by LMS window).")
+                break
+
             # If no more pending entries, we're done
             if current_count == 0:
-                logger.info(f"✅ No more pending entries. Processed {completed} items.")
+                logger.info(f"No more pending entries. Processed {completed} items.")
                 break
 
             available_count = self._count_unblocked_entries_for_subject(subject_index)
             if available_count == 0:
-                logger.info("✅ Remaining entries are already blocked/skipped for this subject.")
+                logger.info("Remaining entries are already blocked/skipped for this subject.")
                 break
 
             if previous_count is not None and current_count >= previous_count:
@@ -160,18 +142,19 @@ class FeedbackProcessor:
             
             # Try to submit - this handles submitted/skipped/failed internally
             success = self._submit_single_feedback(subject_index)
-            
+
             if success:
                 completed += 1
                 continue
 
             if self._count_unblocked_entries_for_subject(subject_index) == 0:
-                logger.info("✅ Subject completed: only already-submitted entries remain.")
+                logger.info("Subject completed: only already-submitted entries remain.")
                 break
 
 
     def _submit_single_feedback(self, subject_index: int) -> bool:
         """Submit a single feedback form. Returns True on success."""
+        button_signature = ""
         try:
             # Find and click the next unblocked "Give Feedback" button for this subject
             next_btn = self._get_next_unblocked_feedback_button(subject_index)
@@ -180,10 +163,18 @@ class FeedbackProcessor:
                 return False
 
             give_feedback_btn, button_signature = next_btn
-            safe_click(give_feedback_btn)
-            
-            # Wait for page to transition to form
-            time.sleep(1)
+            before_click_url = self.page.url
+            try:
+                give_feedback_btn.wait_for(state="visible", timeout=5000)
+                give_feedback_btn.click(force=True)
+            except PlaywrightTimeoutError:
+                logger.warning("Pending entry became unavailable before click. Skipping this entry.")
+                self.summary.total_skipped += 1
+                self._block_subject_entry(subject_index, button_signature, "")
+                return True
+
+            # Allow redirect/modal update to settle in headless mode.
+            self.page.wait_for_timeout(700)
 
             # If LMS says this selected date has no classes, skip this date permanently
             if self._is_no_classes_for_selected_date_error():
@@ -192,8 +183,19 @@ class FeedbackProcessor:
                 self._block_subject_entry(subject_index, button_signature, "")
                 return True
 
+            # Wait briefly for URL transition, if any.
+            for _ in range(25):
+                if self.page.url != before_click_url:
+                    break
+                if self._is_no_classes_for_selected_date_error():
+                    logger.info("[SKIPPED] No classes found for selected date. Skipping this date entry.")
+                    self.summary.total_skipped += 1
+                    self._block_subject_entry(subject_index, button_signature, "")
+                    return True
+                self.page.wait_for_timeout(120)
+
             url_signature = self._extract_entry_signature_from_url()
-            
+
             # CRITICAL: Check if feedback was already submitted before trying to submit
             if self._is_feedback_already_submitted():
                 logger.info("[SKIPPED] Feedback already submitted for this entry.")
@@ -201,50 +203,63 @@ class FeedbackProcessor:
                 self._block_subject_entry(subject_index, button_signature, url_signature)
                 self._skip_current_feedback_date()
                 return True
-            
+
             # Wait strongly for the submit button to ensure the form fully renders
             submit_btn = safe_locator_or(self.page, [
                 FeedbackFormSelectors.SUBMIT_BTN,
                 FeedbackFormSelectors.SUBMIT_BTN_FALLBACK,
                 FeedbackFormSelectors.SUBMIT_BTN_FALLBACK_2,
-            ])
-            
+                FeedbackFormSelectors.SUBMIT_BTN_FALLBACK_3,
+            ], wait_timeout_ms=6000, fallback_when_empty=False, warn_on_empty=False)
+
+            if submit_btn is None or submit_btn.count() == 0:
+                # Some entries remain on the modal dashboard when action is unavailable.
+                if self.page.url == before_click_url:
+                    logger.warning("Give Feedback click did not open a form. Skipping this entry for current run.")
+                    self.summary.total_skipped += 1
+                    self._block_subject_entry(subject_index, button_signature, "")
+                    return True
+                raise RuntimeError("Feedback form loaded but submit button was not found.")
+
             submit_btn.first.wait_for(state="visible", timeout=15000)
-            
+
             if self.config.dry_run:
                 logger.info("[DRY RUN] Form loaded. Skipping actual submit.")
                 self.summary.total_skipped += 1
-                self.page.go_back()
-                time.sleep(2)  # Extended wait for page to recover
+                self._block_subject_entry(subject_index, button_signature, url_signature)
+                self._skip_current_feedback_date()
                 return True
-                
+
             safe_click(submit_btn.first)
-            
+
             # Wait for form to close and page to settle
             try:
                 submit_btn.first.wait_for(state="hidden", timeout=20000)
             except Exception:
                 logger.warning("Submit button never disappeared. Assuming success.")
-            
+
             # Critical: Wait for page to fully load and buttons to reset
-            time.sleep(2)
-            self.page.wait_for_load_state("networkidle", timeout=10000)
+            self.page.wait_for_timeout(1200)
+            try:
+                self.page.wait_for_load_state("domcontentloaded", timeout=10000)
+            except Exception:
+                pass
             self.summary.total_submitted += 1
             logger.info("[SUCCESS] Feedback submitted.")
             return True
-            
+
         except Exception as e:
             logger.error(f"Exception during form submission: {e}")
             save_error_artifacts(self.page, "submit_form_fail")
+            if button_signature:
+                self._block_subject_entry(subject_index, button_signature, "")
             return False
 
     def _get_next_unblocked_feedback_button(self, subject_index: int):
         """Return next Give Feedback button that is not blocked for this subject."""
-        give_feedback_btn = safe_locator_or(self.page, [
-            FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN,
-            FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN_FALLBACK,
-            FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN_FALLBACK_2,
-        ])
+        give_feedback_btn = self._get_pending_feedback_buttons()
+        if give_feedback_btn is None:
+            return None
 
         count = give_feedback_btn.count()
         blocked = self.blocked_entries_by_subject.get(subject_index, set())
@@ -261,11 +276,9 @@ class FeedbackProcessor:
 
     def _count_unblocked_entries_for_subject(self, subject_index: int) -> int:
         """Count currently visible Give Feedback buttons that are not blocked for this subject."""
-        give_feedback_btn = safe_locator_or(self.page, [
-            FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN,
-            FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN_FALLBACK,
-            FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN_FALLBACK_2,
-        ])
+        give_feedback_btn = self._get_pending_feedback_buttons()
+        if give_feedback_btn is None:
+            return 0
 
         count = give_feedback_btn.count()
         blocked = self.blocked_entries_by_subject.get(subject_index, set())
@@ -370,9 +383,15 @@ class FeedbackProcessor:
     def _skip_current_feedback_date(self):
         """Skip the current date entry and return to the subject feedback list."""
         try:
-            self.page.go_back(wait_until="networkidle", timeout=15000)
-            time.sleep(1)
-            self.page.wait_for_load_state("networkidle", timeout=10000)
+            if "/give-feedback/" in self.page.url.lower():
+                self.page.go_back(wait_until="networkidle", timeout=15000)
+                self.page.wait_for_timeout(800)
+                try:
+                    self.page.wait_for_load_state("networkidle", timeout=10000)
+                except Exception:
+                    pass
+            else:
+                self._close_subject_modal_if_open()
         except Exception as e:
             logger.warning(f"Failed to skip current date entry cleanly: {e}")
             raise
@@ -380,32 +399,18 @@ class FeedbackProcessor:
     def _ensure_subject_dates_page(self, subject_index: int):
         """Ensure we are inside the current subject's date list before counting pending entries."""
         try:
-            give_feedback_buttons = safe_locator_or(self.page, [
-                FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN,
-                FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN_FALLBACK,
-                FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN_FALLBACK_2,
-            ])
+            if self._count_current_pending_buttons() > 0:
+                return
 
-            if give_feedback_buttons.count() > 0:
+            target = self._get_subject_target(subject_index)
+            if target and target.get("declared_pending") == 0:
                 return
 
             from .navigation import NavigationHandler
             nav = NavigationHandler(self.page)
             nav.go_to_feedback(force_reload=True)
-
-            subject_locators = safe_locator_or(self.page, [
-                FeedbackDashboardSelectors.SUBJECT_CARD_PRIMARY,
-                FeedbackDashboardSelectors.SUBJECT_CARD_FALLBACK_1,
-                FeedbackDashboardSelectors.SUBJECT_CARD_FALLBACK_2,
-                FeedbackDashboardSelectors.SUBJECT_CARD_FALLBACK_3,
-            ])
-
-            if subject_index >= subject_locators.count():
-                raise RuntimeError(f"Subject index out of range while re-entering subject: {subject_index}")
-
-            safe_click(subject_locators.nth(subject_index))
-            time.sleep(2)
-            self.page.wait_for_load_state("networkidle", timeout=10000)
+            self._wait_for_feedback_dashboard_ready()
+            self._open_subject_by_run_index(subject_index)
         except Exception as e:
             logger.warning(f"Failed to ensure subject dates page: {e}")
             raise
@@ -413,14 +418,355 @@ class FeedbackProcessor:
     def _return_to_subject_list(self):
         """Navigate back to the feedback subject list."""
         try:
+            if self._close_subject_modal_if_open():
+                self.page.wait_for_timeout(300)
+
+            subject_locators = self._resolve_subject_locators()
+            if subject_locators is not None and subject_locators.count() > 0:
+                return
+
             from .navigation import NavigationHandler
             nav = NavigationHandler(self.page)
             nav.go_to_feedback(force_reload=True)
-            time.sleep(1)
+            self.page.wait_for_timeout(600)
         except Exception as e:
             logger.warning(f"Forced navigation failed. Attempting Escape key... {e}")
             try:
                 self.page.keyboard.press("Escape")
-                time.sleep(1)
+                self.page.wait_for_timeout(400)
             except Exception as e2:
                 logger.warning(f"Escape key also failed: {e2}")
+
+    def _wait_for_feedback_dashboard_ready(self):
+        """Wait until feedback dashboard subject containers are available."""
+        self.page.wait_for_load_state("domcontentloaded", timeout=20000)
+        try:
+            self.page.wait_for_load_state("networkidle", timeout=8000)
+        except PlaywrightTimeoutError:
+            pass
+
+        deadline = time.time() + 12
+        while time.time() < deadline:
+            subject_locators = self._resolve_subject_locators()
+            if subject_locators is not None and subject_locators.count() > 0:
+                return
+
+            self._expand_feedback_section_if_collapsed()
+            self.page.wait_for_timeout(300)
+
+        raise PlaywrightTimeoutError("Feedback subject containers did not appear.")
+
+    def _expand_feedback_section_if_collapsed(self):
+        """Open feedback accordion if dashboard content is collapsed."""
+        try:
+            feedback_content = self.page.locator("#feedbackContent")
+            if feedback_content.count() == 0:
+                return
+
+            style = (feedback_content.first.get_attribute("style") or "").lower()
+            if "display: none" not in style:
+                return
+
+            toggle = safe_locator_or(
+                self.page,
+                [
+                    ".feedback-toggle-btn",
+                    "#feedbackCollapseIcon",
+                ],
+                fallback_when_empty=False,
+                warn_on_empty=False,
+            )
+            if toggle is not None and toggle.count() > 0:
+                safe_click(toggle.first)
+                self.page.wait_for_timeout(500)
+        except Exception as e:
+            logger.debug(f"Feedback collapse toggle check failed: {e}")
+
+    def _resolve_subject_locators(self):
+        """Return the first subject locator strategy that yields elements."""
+        selectors = [
+            FeedbackDashboardSelectors.SUBJECT_CARD_PRIMARY,
+            FeedbackDashboardSelectors.SUBJECT_CARD_FALLBACK_1,
+            FeedbackDashboardSelectors.SUBJECT_CARD_FALLBACK_2,
+            FeedbackDashboardSelectors.SUBJECT_CARD_FALLBACK_3,
+        ]
+
+        for selector in selectors:
+            try:
+                locator = self.page.locator(selector)
+                count = locator.count()
+                if count > 0:
+                    logger.debug(f"Using subject selector '{selector}' ({count} matches).")
+                    return locator
+            except Exception as e:
+                logger.debug(f"Subject selector '{selector}' failed: {e}")
+
+        return None
+
+    def _collect_subject_targets(self, subject_locators) -> list[dict[str, Any]]:
+        """Extract stable, de-duplicated subject targets from current dashboard."""
+        targets: list[dict[str, Any]] = []
+        seen_signatures: set[str] = set()
+
+        count = subject_locators.count()
+        for raw_index in range(count):
+            loc = subject_locators.nth(raw_index)
+            subject_name = self._extract_subject_name(loc)
+            if not self._is_valid_subject_name(subject_name):
+                logger.debug(f"Skipping non-subject candidate at index {raw_index}: '{subject_name}'")
+                continue
+
+            signature = self._build_subject_signature(loc, raw_index, subject_name)
+            if signature in seen_signatures:
+                logger.debug(f"Skipping duplicate subject candidate at index {raw_index}: '{subject_name}'")
+                continue
+
+            seen_signatures.add(signature)
+            targets.append({
+                "raw_index": raw_index,
+                "name": subject_name,
+                "signature": signature,
+                "declared_pending": self._extract_declared_pending_count(loc),
+            })
+
+        return targets
+
+    def _extract_subject_name(self, subject_locator) -> str:
+        """Extract a clean subject name from a subject card/row element."""
+        onclick_attr = ""
+        try:
+            onclick_attr = subject_locator.get_attribute("onclick") or ""
+        except Exception:
+            pass
+
+        onclick_name = self._extract_subject_name_from_onclick(onclick_attr)
+        if onclick_name:
+            return onclick_name
+
+        for selector in ["h6", "h5", "h4", ".subject-name", ".subject-title"]:
+            try:
+                name_loc = subject_locator.locator(selector)
+                if name_loc.count() == 0:
+                    continue
+                candidate = self._normalize_whitespace(name_loc.first.text_content() or "")
+                if candidate and self._is_valid_subject_name(candidate):
+                    return candidate
+            except Exception:
+                continue
+
+        try:
+            raw_text = subject_locator.text_content() or ""
+        except Exception:
+            raw_text = ""
+
+        lines = [self._normalize_whitespace(line) for line in raw_text.splitlines()]
+        for line in lines:
+            if not line:
+                continue
+            if "||" in line:
+                line = self._normalize_whitespace(line.split("||", 1)[1])
+            if self._is_valid_subject_name(line):
+                return line
+
+        compact = self._normalize_whitespace(raw_text)
+        if "||" in compact:
+            compact = self._normalize_whitespace(compact.split("||", 1)[1])
+        if self._is_valid_subject_name(compact):
+            return compact
+
+        return ""
+
+    def _extract_subject_name_from_onclick(self, onclick_attr: str) -> str:
+        """Parse subject name from showSubjectFeedbackChart onclick handler."""
+        if not onclick_attr:
+            return ""
+
+        decoded = unescape(onclick_attr)
+        match = re.search(
+            r"showSubjectFeedbackChart\(\s*'[^']*'\s*,\s*'([^']+)'",
+            decoded,
+        )
+        if not match:
+            return ""
+
+        return self._normalize_whitespace(match.group(1).replace("\\'", "'"))
+
+    def _extract_declared_pending_count(self, subject_locator) -> int | None:
+        """Best-effort parse of pending entry count from onclick payload."""
+        try:
+            onclick_attr = subject_locator.get_attribute("onclick") or ""
+        except Exception:
+            return None
+
+        if not onclick_attr:
+            return None
+
+        decoded = unescape(onclick_attr)
+        compact = re.sub(r"\s+", "", decoded)
+
+        if "showSubjectFeedbackChart" not in decoded:
+            return None
+        if ",[])" in compact:
+            return 0
+        if "attendance_header_id" in decoded:
+            return decoded.count("attendance_header_id")
+
+        return None
+
+    def _build_subject_signature(self, subject_locator, raw_index: int, subject_name: str) -> str:
+        """Create a stable per-subject signature for de-duplication and diagnostics."""
+        try:
+            onclick_attr = subject_locator.get_attribute("onclick") or ""
+        except Exception:
+            onclick_attr = ""
+
+        if onclick_attr:
+            decoded = unescape(onclick_attr)
+            id_match = re.search(r"showSubjectFeedbackChart\(\s*'([^']+)'", decoded)
+            if id_match:
+                return f"subject_id:{id_match.group(1)}"
+            return f"onclick:{decoded}"
+
+        for attr in ["data-subject-id", "data-course", "id"]:
+            try:
+                value = subject_locator.get_attribute(attr)
+                if value:
+                    return f"{attr}:{value}"
+            except Exception:
+                continue
+
+        return f"idx:{raw_index}:{subject_name.lower()}"
+
+    def _normalize_whitespace(self, value: str) -> str:
+        return " ".join(value.split()).strip()
+
+    def _looks_like_subject_code(self, text: str) -> bool:
+        return bool(re.fullmatch(r"[A-Z]{2,}\d{2,}[A-Z0-9-]*", text.strip()))
+
+    def _looks_like_non_subject_fragment(self, text: str) -> bool:
+        stripped = text.strip()
+        lowered = stripped.lower()
+
+        if not stripped:
+            return True
+        if len(stripped) < 3:
+            return True
+        if lowered in {"completed", "pending", "unavailable", "feedback dashboard", "subject progress"}:
+            return True
+        if re.fullmatch(r"\d+(?:\.\d+)?%", stripped):
+            return True
+        if re.fullmatch(r"\d+\s*/\s*\d+", stripped):
+            return True
+        if re.fullmatch(r"subject\s+\d+", lowered):
+            return True
+        if self._looks_like_subject_code(stripped):
+            return True
+
+        return False
+
+    def _is_valid_subject_name(self, name: str) -> bool:
+        if self._looks_like_non_subject_fragment(name):
+            return False
+        return bool(re.search(r"[A-Za-z]", name))
+
+    def _get_subject_target(self, run_index: int) -> dict[str, Any] | None:
+        if run_index < 0 or run_index >= len(self.subject_targets):
+            return None
+        return self.subject_targets[run_index]
+
+    def _open_subject_by_run_index(self, run_index: int):
+        """Click the subject represented by run_index and wait for pending list state."""
+        target = self._get_subject_target(run_index)
+        if target is None:
+            raise RuntimeError(f"Unknown subject index: {run_index}")
+
+        subject_locators = self._resolve_subject_locators()
+        if subject_locators is None:
+            raise RuntimeError("Subject cards are not available on dashboard.")
+
+        raw_index = int(target["raw_index"])
+        if raw_index >= subject_locators.count():
+            raise RuntimeError(
+                f"Subject index out of range while opening subject: raw_index={raw_index}"
+            )
+
+        safe_click(subject_locators.nth(raw_index))
+        self._wait_for_subject_panel()
+
+    def _wait_for_subject_panel(self):
+        """Wait until modal/list/form state appears after subject click."""
+        deadline = time.time() + 10
+        while time.time() < deadline:
+            lowered_url = self.page.url.lower()
+            if "/give-feedback/" in lowered_url:
+                return
+
+            if self._count_current_pending_buttons() > 0:
+                return
+
+            if self._count_disabled_pending_buttons() > 0:
+                return
+
+            if self._has_visible_match([
+                FeedbackDashboardSelectors.PENDING_FEEDBACK_LIST,
+                FeedbackDashboardSelectors.NO_PENDING_FEEDBACK_TEXT,
+                FeedbackDashboardSelectors.SUBJECT_FEEDBACK_MODAL_OPEN,
+            ]):
+                return
+
+            self.page.wait_for_timeout(250)
+
+    def _get_pending_feedback_buttons(self):
+        """Return locator for enabled Give Feedback buttons in current subject context."""
+        return safe_locator_or(
+            self.page,
+            [
+                FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN,
+                FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN_FALLBACK,
+                FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN_FALLBACK_2,
+                FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN_FALLBACK_3,
+            ],
+            fallback_when_empty=False,
+            warn_on_empty=False,
+        )
+
+    def _count_current_pending_buttons(self) -> int:
+        buttons = self._get_pending_feedback_buttons()
+        if buttons is None:
+            return 0
+        try:
+            return buttons.count()
+        except Exception:
+            return 0
+
+    def _count_disabled_pending_buttons(self) -> int:
+        try:
+            return self.page.locator(FeedbackDashboardSelectors.GIVE_FEEDBACK_DISABLED_BTN).count()
+        except Exception:
+            return 0
+
+    def _close_subject_modal_if_open(self) -> bool:
+        """Close subject feedback modal if it is currently open."""
+        try:
+            modal_open = self.page.locator(FeedbackDashboardSelectors.SUBJECT_FEEDBACK_MODAL_OPEN)
+            if modal_open.count() == 0:
+                return False
+
+            close_btn = safe_locator_or(
+                self.page,
+                [
+                    f"{FeedbackDashboardSelectors.SUBJECT_FEEDBACK_MODAL} button[data-dismiss='modal']",
+                    f"{FeedbackDashboardSelectors.SUBJECT_FEEDBACK_MODAL} button.close",
+                ],
+                fallback_when_empty=False,
+                warn_on_empty=False,
+            )
+            if close_btn is not None and close_btn.count() > 0:
+                safe_click(close_btn.first)
+            else:
+                self.page.keyboard.press("Escape")
+
+            self.page.wait_for_timeout(400)
+            return True
+        except Exception:
+            return False

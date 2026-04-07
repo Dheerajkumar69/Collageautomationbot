@@ -13,6 +13,8 @@ def safe_locator_or(
     selectors_list: Sequence[str],
     wait_timeout_ms: int = 0,
     poll_interval_ms: int = 300,
+    fallback_when_empty: bool = True,
+    warn_on_empty: bool = True,
 ) -> Locator | None:
     """
     Try multiple selectors in order, returning the first one that finds elements.
@@ -53,8 +55,14 @@ def safe_locator_or(
 
         page.wait_for_timeout(poll_interval_ms)
     
-    # If no selector found elements, return the first one anyway (will fail gracefully)
-    logger.warning(f"No selector matched any elements. Using first selector as fallback.")
+    # If no selector found elements, optionally return first locator for legacy behavior.
+    if not fallback_when_empty:
+        if warn_on_empty:
+            logger.warning("No selector matched any elements.")
+        return None
+
+    if warn_on_empty:
+        logger.warning("No selector matched any elements. Using first selector as fallback.")
     return page.locator(selectors_list[0])
 
 def with_retry(max_retries: int = 3, delay: float = 2.0):

@@ -38,22 +38,31 @@ class SidebarSelectors:
     DASHBOARD_GREETING_EVENING = 'text=Good Evening!'
 
 class FeedbackDashboardSelectors:
-    # Subject cards - try multiple class names
-    SUBJECT_CARD_PRIMARY = '.subject-card'
-    SUBJECT_CARD_FALLBACK_1 = 'tr.subject-row'
-    SUBJECT_CARD_FALLBACK_2 = 'h4.subject-name'
-    SUBJECT_CARD_FALLBACK_3 = 'div[onclick*="subject"]'
-    
-    # Give Feedback button
-    GIVE_FEEDBACK_BTN = 'button:has-text("Give Feedback")'
-    GIVE_FEEDBACK_BTN_FALLBACK = 'a:has-text("Give Feedback")'
-    GIVE_FEEDBACK_BTN_FALLBACK_2 = 'button:has-text("Give feedback")'  # lowercase variant
+    # Subject cards - prioritize clickable subject containers only.
+    SUBJECT_CARD_PRIMARY = '.subject-item-modern[onclick*="showSubjectFeedbackChart"]'
+    SUBJECT_CARD_FALLBACK_1 = '[onclick*="showSubjectFeedbackChart"]'
+    SUBJECT_CARD_FALLBACK_2 = '.subject-card'
+    SUBJECT_CARD_FALLBACK_3 = '.subject-feedback-item'
+
+    # Modal/list markers for modern feedback dashboard.
+    SUBJECT_FEEDBACK_MODAL = '#subjectFeedbackModal'
+    SUBJECT_FEEDBACK_MODAL_OPEN = '#subjectFeedbackModal.in'
+    PENDING_FEEDBACK_LIST = '#pendingFeedbackList'
+    NO_PENDING_FEEDBACK_TEXT = '#noFeedbackResults, text=No pending feedback'
+
+    # Give Feedback buttons (enabled first, then generic legacy fallbacks).
+    GIVE_FEEDBACK_BTN = '#pendingFeedbackList .give-feedback-btn:not(.disabled):visible'
+    GIVE_FEEDBACK_BTN_FALLBACK = '.give-feedback-btn:not(.disabled):visible'
+    GIVE_FEEDBACK_BTN_FALLBACK_2 = 'button:has-text("Give Feedback"):visible'
+    GIVE_FEEDBACK_BTN_FALLBACK_3 = 'a:has-text("Give Feedback"):visible'
+    GIVE_FEEDBACK_DISABLED_BTN = '.give-feedback-btn.disabled'
     
 class FeedbackFormSelectors:
     # Submit button
     SUBMIT_BTN = 'button:has-text("Submit Feedback")'
     SUBMIT_BTN_FALLBACK = 'button:has-text("Submit")'
     SUBMIT_BTN_FALLBACK_2 = 'button[type="submit"]'
+    SUBMIT_BTN_FALLBACK_3 = 'input[type="submit"]'
     
     # Already submitted detection
     ALREADY_SUBMITTED_BANNER = '.feedback-already-given:visible'
