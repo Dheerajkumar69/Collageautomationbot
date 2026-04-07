@@ -25,9 +25,16 @@ class BrowserManager:
         )
 
     @staticmethod
-    def _install_chromium() -> None:
+    def _install_chromium(headless: bool) -> None:
         logger.warning("Chromium binary missing. Attempting Playwright install...")
-        cmd = [sys.executable, "-m", "playwright", "install", "chromium"]
+
+        cmd = [sys.executable, "-m", "playwright", "install"]
+        if headless:
+            # Headless shell is smaller and faster to download for server workloads.
+            cmd.extend(["--only-shell", "chromium"])
+        else:
+            cmd.append("chromium")
+
         result = subprocess.run(
             cmd,
             env=os.environ.copy(),
@@ -72,7 +79,7 @@ class BrowserManager:
             if self.playwright:
                 self.playwright.stop()
 
-            self._install_chromium()
+            self._install_chromium(self.config.headless)
             self.playwright = sync_playwright().start()
             self.browser = self._launch_browser()
         

@@ -29,12 +29,12 @@ function classifyLog(text: string): LogEntry["kind"] {
 }
 
 const LOG_COLORS: Record<LogEntry["kind"], string> = {
-  info:    "text-green-300/90",
-  success: "text-emerald-400",
+  info:    "text-zinc-300",
+  success: "text-zinc-100",
   error:   "text-red-400",
-  warn:    "text-yellow-400",
-  divider: "text-white/15",
-  system:  "text-indigo-300/80",
+  warn:    "text-amber-400",
+  divider: "text-zinc-800",
+  system:  "text-zinc-500",
 };
 
 // ── SVG Icons (inline, no extra deps) ─────────────────────────────────────────
@@ -121,6 +121,14 @@ function IconCheck({ className }: { className?: string }) {
   );
 }
 
+function IconPalette({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 16.122a3 3 0 0 0-5.78 1.128 2.25 2.25 0 0 1-2.4 2.245 4.5 4.5 0 0 0 8.4-2.245c0-.399-.078-.78-.22-1.128Zm0 0a15.998 15.998 0 0 0 3.388-1.62m-5.043-.025a15.994 15.994 0 0 1 1.622-3.395m3.42 3.42a15.995 15.995 0 0 0 4.764-4.648l3.813-3.814a3.182 3.182 0 0 0-4.497-4.497l-3.813 3.814a15.996 15.996 0 0 0-4.648 4.764m4.496 4.496L12 12m0 0-3.42-3.42" />
+    </svg>
+  );
+}
+
 // ── Spinner SVG ────────────────────────────────────────────────────────────────
 function Spinner({ size = 16 }: { size?: number }) {
   return (
@@ -151,10 +159,10 @@ function Spinner({ size = 16 }: { size?: number }) {
 // ── Status badge ───────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: Status }) {
   const cfg = {
-    idle:    { label: "Idle",    dot: "bg-white/20",       text: "text-white/30" },
-    running: { label: "Running", dot: "bg-yellow-400",     text: "text-yellow-400", pulse: true },
-    done:    { label: "Done",    dot: "bg-emerald-400",    text: "text-emerald-400" },
-    error:   { label: "Error",   dot: "bg-red-400",        text: "text-red-400" },
+    idle:    { label: "Idle",    dot: "bg-zinc-600",       text: "text-zinc-500" },
+    running: { label: "Running", dot: "bg-white",          text: "text-zinc-300", pulse: true },
+    done:    { label: "Done",    dot: "bg-zinc-300",       text: "text-zinc-300" },
+    error:   { label: "Error",   dot: "bg-red-500",        text: "text-red-500" },
   }[status];
 
   return (
@@ -177,6 +185,16 @@ export default function Home() {
   const [status, setStatus]       = useState<Status>("idle");
   const [errorMsg, setErrorMsg]   = useState("");
   const [copied, setCopied]       = useState(false);
+
+  // Themes
+  const themes = ["dark", "light", "cat", "synthwave"];
+  const [themeIdx, setThemeIdx] = useState(0);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", themes[themeIdx]);
+  }, [themeIdx, themes]);
+
+  const cycleTheme = () => setThemeIdx((prev) => (prev + 1) % themes.length);
 
   const bottomRef  = useRef<HTMLDivElement>(null);
   const abortRef   = useRef<AbortController | null>(null);
@@ -354,22 +372,31 @@ export default function Home() {
 
   // ── JSX ────────────────────────────────────────────────────────────────────
   return (
-    <main className="relative z-10 min-h-screen w-full flex flex-col items-center justify-center p-4 sm:p-8 py-12">
+    <main className="relative z-10 min-h-screen w-full flex flex-col items-center justify-center p-4 sm:p-8 py-12 transition-colors duration-300">
+      
+      {/* ── Theme Switcher ────────────────────────────────────────────────── */}
+      <button
+        onClick={cycleTheme}
+        className="absolute top-4 right-4 sm:top-8 sm:right-8 flex items-center gap-2 px-3 py-2 rounded-full border border-[var(--border)] bg-[var(--bg-card)] hover:bg-[var(--bg-input)] transition-all duration-200 shadow-sm z-50 text-[var(--text-primary)]"
+        aria-label="Switch theme"
+        title={`Current theme: ${themes[themeIdx]}`}
+      >
+        <IconPalette className="w-4 h-4 text-[var(--color-accent)]" />
+        <span className="text-xs font-medium uppercase tracking-widest hidden sm:inline-block">Theme: {themes[themeIdx]}</span>
+      </button>
 
       {/* ── Hero text ─────────────────────────────────────────────────────── */}
-      <div className="mb-10 text-center animate-fade-in-up" style={{ animationDelay: "0ms" }}>
+      <div className="mb-10 text-center animate-fade-in-up">
         {/* Badge */}
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 text-xs font-medium mb-5">
-          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-status-pulse" />
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-muted)] text-xs font-medium mb-5 tracking-wide shadow-sm">
+          <span className="w-1.5 h-1.5 rounded-full bg-[var(--border-focus)]" />
           Adamas University · LMS Automation
         </div>
 
-        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-white mb-3">
-          Auto&#8209;
-          <span className="shimmer-text">Feedback</span>
-          {" "}Bot
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight text-[var(--text-primary)] mb-3 transition-colors duration-300">
+          Auto&#8209;Feedback Bot
         </h1>
-        <p className="text-base sm:text-lg text-white/40 max-w-md mx-auto leading-relaxed">
+        <p className="text-base sm:text-lg text-[var(--text-dim)] max-w-md mx-auto leading-relaxed transition-colors duration-300">
           Submit all LMS feedback forms in seconds. Fully headless &amp; automated — watch it run live.
         </p>
       </div>
@@ -382,30 +409,16 @@ export default function Home() {
           className="glass-card p-6 sm:p-8 flex flex-col gap-6 shadow-2xl animate-fade-in-up"
           style={{ animationDelay: "80ms" }}
         >
-          {/* Panel header */}
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center">
-              <IconBot className="w-5 h-5 text-indigo-400" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-white/90">Bot Credentials</p>
-              <p className="text-xs text-white/35">SSN LMS student login</p>
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="h-px bg-white/[0.06]" />
-
           {/* Form */}
-          <form onSubmit={handleStart} className="flex flex-col gap-5" noValidate>
+          <form onSubmit={handleStart} className="flex flex-col gap-5 pt-2" noValidate>
 
             {/* Registration Number */}
             <div className="flex flex-col gap-2">
-              <label htmlFor="regNumber" className="text-xs font-medium text-white/55 uppercase tracking-widest">
+              <label htmlFor="regNumber" className="text-xs font-medium text-[var(--text-dim)] tracking-wide">
                 Registration Number
               </label>
               <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-white/25">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-muted)]">
                   <IconUser className="w-4 h-4" />
                 </span>
                 <input
@@ -422,9 +435,9 @@ export default function Home() {
                   spellCheck={false}
                   className="
                     input-field w-full
-                    bg-black/40 border border-white/[0.09] rounded-xl
+                    bg-[var(--bg-input)] border border-[var(--border)] rounded-xl
                     pl-10 pr-4 py-3
-                    text-white text-sm placeholder-white/20
+                    text-[var(--text-primary)] text-sm placeholder-[var(--text-muted)]
                     transition-all duration-200
                     disabled:opacity-50 disabled:cursor-not-allowed
                     font-mono tracking-wide
@@ -435,11 +448,11 @@ export default function Home() {
 
             {/* Password */}
             <div className="flex flex-col gap-2">
-              <label htmlFor="lmsPassword" className="text-xs font-medium text-white/55 uppercase tracking-widest">
+              <label htmlFor="lmsPassword" className="text-xs font-medium text-[var(--text-dim)] tracking-wide">
                 Password
               </label>
               <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-white/25">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-muted)]">
                   <IconLock className="w-4 h-4" />
                 </span>
                 <input
@@ -455,9 +468,9 @@ export default function Home() {
                   disabled={isRunning}
                   className="
                     input-field w-full
-                    bg-black/40 border border-white/[0.09] rounded-xl
+                    bg-[var(--bg-input)] border border-[var(--border)] rounded-xl
                     pl-10 pr-11 py-3
-                    text-white text-sm placeholder-white/20
+                    text-[var(--text-primary)] text-sm placeholder-[var(--text-muted)]
                     transition-all duration-200
                     disabled:opacity-50 disabled:cursor-not-allowed
                   "
@@ -469,7 +482,7 @@ export default function Home() {
                   tabIndex={-1}
                   className="
                     absolute right-3 top-1/2 -translate-y-1/2
-                    text-white/30 hover:text-white/60 transition-colors duration-150
+                    text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150
                     focus:outline-none
                   "
                 >
@@ -487,12 +500,12 @@ export default function Home() {
               <div
                 role="alert"
                 className="
-                  bg-red-500/[0.08] border border-red-500/25 rounded-xl
-                  px-4 py-3 text-red-300 text-xs font-mono break-words
+                  bg-red-500/10 border border-red-500/20 rounded-xl
+                  px-4 py-3 text-red-400 text-xs font-mono break-words
                   leading-relaxed
                 "
               >
-                <span className="font-bold text-red-400">Error: </span>
+                <span className="font-semibold">Error: </span>
                 {errorMsg}
               </div>
             )}
@@ -539,8 +552,8 @@ export default function Home() {
           </form>
 
           {/* Info note */}
-          <div className="text-[11px] text-white/20 leading-relaxed pt-1">
-            <span className="text-indigo-400/60">ℹ</span>{" "}
+          <div className="text-[11px] text-[var(--text-muted)] leading-relaxed pt-1">
+            <span className="text-[var(--color-accent)] mr-1">ℹ</span>
             Your credentials are sent directly to the automation server and are never stored or logged anywhere.
           </div>
         </div>
@@ -551,17 +564,17 @@ export default function Home() {
           style={{ animationDelay: "160ms" }}
         >
           {/* Title bar */}
-          <div className="flex items-center px-4 py-3 border-b border-white/[0.05] bg-[var(--terminal-header)] shrink-0 gap-3">
+          <div className="flex items-center px-4 py-3 border-b border-[var(--terminal-border)] bg-[var(--terminal-header)] shrink-0 gap-3">
             {/* Traffic lights */}
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-[#ff5f57]" />
-              <div className="w-3 h-3 rounded-full bg-[#febc2e]" />
-              <div className="w-3 h-3 rounded-full bg-[#28c840]" />
+            <div className="flex items-center gap-1.5 opacity-80">
+              <div className="w-3 h-3 rounded-full bg-[#ff5f57] border border-black/10" />
+              <div className="w-3 h-3 rounded-full bg-[#febc2e] border border-black/10" />
+              <div className="w-3 h-3 rounded-full bg-[#28c840] border border-black/10" />
             </div>
 
             {/* Title */}
-            <div className="flex-1 flex items-center justify-center gap-1.5 text-[11px] font-mono text-white/25">
-              <IconTerminal className="w-3 h-3" />
+            <div className="flex-1 flex items-center justify-center gap-1.5 text-xs font-mono text-zinc-500">
+              <IconTerminal className="w-3.5 h-3.5" />
               automation-logs
             </div>
 
@@ -574,7 +587,7 @@ export default function Home() {
                   type="button"
                   aria-label="Copy logs"
                   onClick={handleCopyLogs}
-                  className="text-white/25 hover:text-white/60 transition-colors duration-150 focus:outline-none"
+                  className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 focus:outline-none"
                   title="Copy all logs"
                 >
                   {copied ? (
@@ -596,18 +609,18 @@ export default function Home() {
           >
             {logs.length === 0 ? (
               /* Empty state */
-              <div className="h-full flex flex-col items-center justify-center text-white/15 select-none gap-4">
+              <div className="h-full flex flex-col items-center justify-center text-[var(--text-muted)] select-none gap-4">
                 <IconTerminal className="w-10 h-10 opacity-50" />
                 <div className="text-center">
-                  <p className="text-sm text-white/20 mb-1">Waiting for execution…</p>
-                  <p className="text-xs text-white/10">
+                  <p className="text-sm text-[var(--text-dim)] mb-1">Waiting for execution…</p>
+                  <p className="text-xs text-[var(--text-muted)] opacity-60">
                     Enter credentials and press{" "}
-                    <kbd className="bg-white/[0.06] px-1.5 py-0.5 rounded text-white/20">Start</kbd>
+                    <kbd className="bg-[var(--border)] px-1.5 py-0.5 rounded text-[var(--text-primary)]">Start</kbd>
                   </p>
                 </div>
 
                 {/* Fake typing cursor */}
-                <span className="text-indigo-500/40 text-base animate-blink">▊</span>
+                <span className="text-[var(--color-accent)] text-base animate-blink">▊</span>
               </div>
             ) : (
               <div className="flex flex-col gap-[2px] pb-2">
@@ -624,7 +637,7 @@ export default function Home() {
 
                 {/* Running cursor */}
                 {isRunning && (
-                  <div className="terminal-log-line text-indigo-400/60">
+                  <div className="terminal-log-line text-[var(--color-accent)] opacity-60">
                     <span className="terminal-prompt select-none">›</span>
                     <span className="animate-blink">▊</span>
                   </div>
@@ -636,8 +649,8 @@ export default function Home() {
           </div>
 
           {/* Footer bar */}
-          <div className="shrink-0 border-t border-white/[0.05] bg-[var(--terminal-header)] px-4 py-2 flex items-center justify-between">
-            <span className="text-[10px] font-mono text-white/15">
+          <div className="shrink-0 border-t border-[var(--terminal-border)] bg-[var(--terminal-header)] px-4 py-2 flex items-center justify-between">
+            <span className="text-[10px] font-mono text-[var(--text-muted)] opacity-70">
               {logs.filter((l) => l.kind !== "divider" && l.kind !== "system").length} lines
             </span>
             {status === "done" && (
@@ -656,7 +669,7 @@ export default function Home() {
       </div>
 
       {/* ── Footer ──────────────────────────────────────────────────────────── */}
-      <p className="mt-10 text-center text-[11px] text-white/15 animate-fade-in-up" style={{ animationDelay: "300ms" }}>
+      <p className="mt-10 text-center text-[11px] text-[var(--text-muted)] animate-fade-in-up" style={{ animationDelay: "300ms" }}>
         LMS Auto-Feedback · Runs headless Playwright in the cloud · No data is stored
       </p>
     </main>

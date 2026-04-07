@@ -4,8 +4,8 @@ services:
     env: python
     plan: free
     buildCommand: >
-      pip install -r requirements.txt &&
-      PLAYWRIGHT_BROWSERS_PATH=/opt/render/project/src/.playwright-browsers python -m playwright install chromium
+      PIP_DISABLE_PIP_VERSION_CHECK=1 pip install -r requirements.txt &&
+      PLAYWRIGHT_BROWSERS_PATH=/opt/render/project/src/.playwright-browsers python -m playwright install --only-shell chromium
     startCommand: "uvicorn server:app --host 0.0.0.0 --port $PORT"
     healthCheckPath: /health
     envVars:
@@ -20,7 +20,7 @@ services:
     name: collageauto-waker
     env: python
     plan: free
-    buildCommand: "pip install -r requirements.txt"
+    buildCommand: "PIP_DISABLE_PIP_VERSION_CHECK=1 pip install -r requirements-worker.txt"
     startCommand: "python render_waker.py"
     envVars:
       - key: PYTHON_VERSION
