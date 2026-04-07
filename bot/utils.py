@@ -1,10 +1,19 @@
 import time
 import functools
 from pathlib import Path
+from typing import Callable, ParamSpec, Sequence, TypeVar
 from playwright.sync_api import Page, Locator, TimeoutError as PlaywrightTimeoutError
 from .logger import logger
 
-def safe_locator_or(page: Page, selectors_list):
+P = ParamSpec("P")
+R = TypeVar("R")
+
+def safe_locator_or(
+    page: Page,
+    selectors_list: Sequence[str],
+    wait_timeout_ms: int = 0,
+    poll_interval_ms: int = 300,
+) -> Locator | None:
     """
     Try multiple selectors in order, returning the first one that finds elements.
     
@@ -17,28 +26,42 @@ def safe_locator_or(page: Page, selectors_list):
     """
     if not selectors_list:
         return None
-    
-    # Try each selector in order, return the first one that finds elements
-    for selector in selectors_list:
-        try:
-            locator = page.locator(selector)
-            # Check if this selector actually finds elements
-            if locator.count() > 0:
-                logger.debug(f"✓ Selector matched: {selector[:60]}...")
-                return locator
-        except Exception as e:
-            logger.debug(f"✗ Selector failed: {selector[:60]}... ({str(e)[:30]})")
-            continue
+
+    deadline = time.time() + (wait_timeout_ms / 1000.0) if wait_timeout_ms > 0 else None
+    poll_interval_ms = max(50, int(poll_interval_ms))
+
+    while True:
+        # Try each selector in order, return first visible match, then attached match.
+        for selector in selectors_list:
+            try:
+                locator = page.locator(selector)
+
+                visible_locator = locator.locator(":visible")
+                if visible_locator.count() > 0:
+                    logger.debug(f"✓ Visible selector matched: {selector[:60]}...")
+                    return visible_locator
+
+                if locator.count() > 0:
+                    logger.debug(f"✓ Selector matched (non-visible): {selector[:60]}...")
+                    return locator
+            except Exception as e:
+                logger.debug(f"✗ Selector failed: {selector[:60]}... ({str(e)[:30]})")
+                continue
+
+        if deadline is None or time.time() >= deadline:
+            break
+
+        page.wait_for_timeout(poll_interval_ms)
     
     # If no selector found elements, return the first one anyway (will fail gracefully)
     logger.warning(f"No selector matched any elements. Using first selector as fallback.")
     return page.locator(selectors_list[0])
 
-def with_retry(max_retries=3, delay=2.0):
-    def decorator(func):
+def with_retry(max_retries: int = 3, delay: float = 2.0):
+    def decorator(func: Callable[P, R]) -> Callable[P, R]:
         @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            last_error = None
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            last_error: Exception | None = None
             for attempt in range(max_retries):
                 try:
                     return func(*args, **kwargs)
@@ -47,6 +70,8 @@ def with_retry(max_retries=3, delay=2.0):
                     logger.debug(f"Attempt {attempt + 1} failed for {func.__name__}: {str(e)}")
                     time.sleep(delay)
             logger.error(f"Function {func.__name__} failed after {max_retries} attempts.")
+            if last_error is None:
+                raise RuntimeError(f"Function {func.__name__} failed without an exception.")
             raise last_error
         return wrapper
     return decorator

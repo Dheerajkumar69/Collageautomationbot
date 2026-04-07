@@ -11,19 +11,31 @@ Instead, we use:
 class LoginSelectors:
     # Primary selectors tried in order
     USERNAME_INPUT = 'input[placeholder*="Registration"]'
-    USERNAME_INPUT_FALLBACK = 'input[name="username"]'
+    USERNAME_INPUT_FALLBACK = 'input[name="registration_no"]'
+    USERNAME_INPUT_FALLBACK_2 = 'input[name="username"]'
+    USERNAME_INPUT_FALLBACK_3 = 'input[type="text"]'
     
     PASSWORD_INPUT = 'input[placeholder*="Password"]'
     PASSWORD_INPUT_FALLBACK = 'input[name="password"]'
+    PASSWORD_INPUT_FALLBACK_2 = 'input[type="password"]'
     
     LOGIN_BTN = 'button:has-text("Login")'
-    LOGIN_BTN_FALLBACK = 'button[type="submit"]'
+    LOGIN_BTN_FALLBACK = '#login_btn'
+    LOGIN_BTN_FALLBACK_2 = 'button[type="submit"]'
 
 class SidebarSelectors:
-    # Primary: look for clickable element with "Feedback" text
-    FEEDBACK_LINK = 'a:has-text("Feedback")'
-    FEEDBACK_LINK_FALLBACK_1 = 'span:has-text("Feedback")'
-    FEEDBACK_LINK_FALLBACK_2 = 'div:has-text("Feedback")'
+    # Primary: direct link to academic feedback page in left menu.
+    FEEDBACK_LINK = 'a[href*="/student/academicfeedback"]'
+    FEEDBACK_LINK_FALLBACK_1 = 'a.nav-link.nav-toggle:has(span.title:has-text("Feedback"))'
+    FEEDBACK_LINK_FALLBACK_2 = 'a:has-text("Feedback")'
+    FEEDBACK_LINK_FALLBACK_3 = '.feedback-toggle-btn'
+
+    # Dashboard markers used for post-login verification.
+    DASHBOARD_SIDEBAR = '.page-sidebar-menu'
+    FEEDBACK_DASHBOARD_TITLE = 'text=Feedback Dashboard'
+    DASHBOARD_GREETING_MORNING = 'text=Good Morning!'
+    DASHBOARD_GREETING_AFTERNOON = 'text=Good Afternoon!'
+    DASHBOARD_GREETING_EVENING = 'text=Good Evening!'
 
 class FeedbackDashboardSelectors:
     # Subject cards - try multiple class names
