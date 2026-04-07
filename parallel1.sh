@@ -10,4 +10,4 @@ if [ -d ".venv" ]; then
 fi
 
 # Run the bot (you can add --headful or --dry-run if you want)
-python main.py 
+python main.py --headful

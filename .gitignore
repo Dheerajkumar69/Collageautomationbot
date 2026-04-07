@@ -49,3 +49,12 @@ __pycache__/
 errors/
 error_login_*.html
 error_login_*.png
+
+# log files
+*.log
+
+# local run scripts (may contain credentials)
+run.sh
+parallel1.sh
+parallel2.sh
+
