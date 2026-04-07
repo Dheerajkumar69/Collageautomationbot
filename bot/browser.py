@@ -1,23 +1,75 @@
-from playwright.sync_api import sync_playwright, Browser, BrowserContext, Page
+import os
+import subprocess
+import sys
+from typing import Optional
+
+from playwright.sync_api import Browser, BrowserContext, Page, Playwright, sync_playwright
 from .config import Config
 from .logger import logger
+
 
 class BrowserManager:
     def __init__(self, config: Config):
         self.config = config
-        self.playwright = None
-        self.browser: Browser = None
-        self.context: BrowserContext = None
-        self.page: Page = None
+        self.playwright: Optional[Playwright] = None
+        self.browser: Optional[Browser] = None
+        self.context: Optional[BrowserContext] = None
+        self.page: Optional[Page] = None
+
+    @staticmethod
+    def _is_missing_browser_error(exc: Exception) -> bool:
+        msg = str(exc)
+        return (
+            "Executable doesn't exist" in msg
+            or "Please run the following command to download new browsers" in msg
+        )
+
+    @staticmethod
+    def _install_chromium() -> None:
+        logger.warning("Chromium binary missing. Attempting Playwright install...")
+        cmd = [sys.executable, "-m", "playwright", "install", "chromium"]
+        result = subprocess.run(
+            cmd,
+            env=os.environ.copy(),
+            capture_output=True,
+            text=True,
+        )
+
+        if result.returncode != 0:
+            stdout_tail = (result.stdout or "").strip()[-1200:]
+            stderr_tail = (result.stderr or "").strip()[-1200:]
+            raise RuntimeError(
+                "Playwright chromium install failed. "
+                f"exit_code={result.returncode} stdout_tail={stdout_tail!r} stderr_tail={stderr_tail!r}"
+            )
+
+        logger.info("Playwright chromium install completed.")
+
+    def _launch_browser(self) -> Browser:
+        if self.playwright is None:
+            raise RuntimeError("Playwright is not initialized")
+        return self.playwright.chromium.launch(
+            headless=self.config.headless,
+            args=["--start-maximized", "--disable-blink-features=AutomationControlled"],
+        )
 
     def start(self) -> Page:
         logger.info("Initializing Playwright browser...")
         self.playwright = sync_playwright().start()
-        
-        self.browser = self.playwright.chromium.launch(
-            headless=self.config.headless,
-            args=["--start-maximized", "--disable-blink-features=AutomationControlled"]
-        )
+
+        try:
+            self.browser = self._launch_browser()
+        except Exception as exc:
+            if not self._is_missing_browser_error(exc):
+                raise
+
+            logger.warning("Playwright browser not found at runtime, running one-time install.")
+            if self.playwright:
+                self.playwright.stop()
+
+            self._install_chromium()
+            self.playwright = sync_playwright().start()
+            self.browser = self._launch_browser()
         
         self.context = self.browser.new_context(
             no_viewport=True,

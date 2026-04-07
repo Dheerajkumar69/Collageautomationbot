@@ -4,7 +4,7 @@ import sys
 from bot.config import Config
 from bot.logger import logger, print_summary
 from bot.browser import BrowserManager
-from bot.auth import AuthHandler, LoginFailedError
+from bot.auth import AuthHandler
 from bot.navigation import NavigationHandler
 from bot.feedback import FeedbackProcessor
 
@@ -49,8 +49,10 @@ def main():
         
     except KeyboardInterrupt:
         logger.info("\nProcess interrupted by user.")
+        sys.exit(130)
     except Exception as e:
         logger.error(f"Automation stopped due to error: {e}")
+        sys.exit(1)
     finally:
         browser_manager.close()
 

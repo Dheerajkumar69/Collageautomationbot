@@ -4,7 +4,7 @@ import re
 import sys
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, field_validator
@@ -82,8 +82,9 @@ async def _run_bot_generator(username: str, password: str):
 
         if process.returncode != 0:
             yield f"data: [ERROR] Process exited with code {process.returncode}\n\n"
-
-        yield "data: [DONE]\n\n"
+            yield "data: [FAILED]\n\n"
+        else:
+            yield "data: [DONE]\n\n"
 
     except asyncio.CancelledError:
         try:
@@ -97,6 +98,8 @@ async def _run_bot_generator(username: str, password: str):
 # ── Routes ─────────────────────────────────────────────────────────────────────
 @app.get("/")
 @app.get("/health")
+@app.head("/")
+@app.head("/health")
 def health():
     """Health check — used by Render and uptime monitors."""
     return JSONResponse({"status": "ok", "service": "lms-auto-feedback"})

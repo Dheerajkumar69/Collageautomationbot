@@ -266,6 +266,28 @@ export default function Home() {
         const decoder = new TextDecoder("utf-8");
         let   buffer  = "";
         let   finished = false;
+        let   failed = false;
+
+        const processEvent = (data: string) => {
+          if (data === "[DONE]") {
+            addLog("─".repeat(50));
+            addLog("✅  Automation completed successfully.");
+            setStatus("done");
+            finished = true;
+            return;
+          }
+
+          if (data === "[FAILED]") {
+            addLog("─".repeat(50));
+            addLog("❌  Automation failed. See error logs above.");
+            setErrorMsg("Automation failed. See terminal logs for details.");
+            setStatus("error");
+            failed = true;
+            return;
+          }
+
+          addLog(data);
+        };
 
         while (true) {
           const { value, done } = await reader.read();
@@ -283,14 +305,7 @@ export default function Home() {
               const data = line.slice(6).trim();
               if (!data) continue;
 
-              if (data === "[DONE]") {
-                addLog("─".repeat(50));
-                addLog("✅  Automation completed successfully.");
-                setStatus("done");
-                finished = true;
-              } else {
-                addLog(data);
-              }
+              processEvent(data);
             }
           }
         }
@@ -300,12 +315,17 @@ export default function Home() {
           for (const line of buffer.split("\n")) {
             if (!line.startsWith("data: ")) continue;
             const data = line.slice(6).trim();
-            if (!data || data === "[DONE]") continue;
-            addLog(data);
+            if (!data) continue;
+            processEvent(data);
           }
         }
 
-        if (!finished) setStatus("done");
+        if (!finished && !failed) {
+          const message = "Automation stream ended unexpectedly before completion.";
+          addLog(`❌  ${message}`);
+          setErrorMsg(message);
+          setStatus("error");
+        }
       } catch (err: unknown) {
         if (err instanceof DOMException && err.name === "AbortError") {
           addLog("⛔  Automation stopped by user.");
