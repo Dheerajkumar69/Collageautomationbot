@@ -51,11 +51,26 @@ class FeedbackDashboardSelectors:
     NO_PENDING_FEEDBACK_TEXT = '#noFeedbackResults, text=No pending feedback'
 
     # Give Feedback buttons (enabled first, then generic legacy fallbacks).
-    GIVE_FEEDBACK_BTN = '#pendingFeedbackList .give-feedback-btn:not(.disabled):visible'
-    GIVE_FEEDBACK_BTN_FALLBACK = '.give-feedback-btn:not(.disabled):visible'
-    GIVE_FEEDBACK_BTN_FALLBACK_2 = 'button:has-text("Give Feedback"):visible'
-    GIVE_FEEDBACK_BTN_FALLBACK_3 = 'a:has-text("Give Feedback"):visible'
-    GIVE_FEEDBACK_DISABLED_BTN = '.give-feedback-btn.disabled'
+    # NOTE: Do NOT use :visible here – Bootstrap modal CSS transitions in headless
+    # Playwright on Render cause the paint state to lag behind the DOM state, so
+    # :visible never matches even when buttons are clearly present. :not(.disabled)
+    # works on DOM attributes and is reliable across headless/headed.
+    GIVE_FEEDBACK_BTN = '#pendingFeedbackList .give-feedback-btn:not(.disabled):not([disabled])'
+    GIVE_FEEDBACK_BTN_FALLBACK = '#pendingFeedbackList [onclick*="giveFeedback"]:not(.disabled):not([disabled])'
+    GIVE_FEEDBACK_BTN_FALLBACK_2 = '#pendingFeedbackList button:has-text("Give Feedback"):not([disabled])'
+    GIVE_FEEDBACK_BTN_FALLBACK_3 = '#pendingFeedbackList a:has-text("Give Feedback"):not(.disabled)'
+    GIVE_FEEDBACK_BTN_FALLBACK_4 = '.give-feedback-btn:not(.disabled):not([disabled])'
+
+    # Disabled/blocked buttons should be scoped to the pending list only.
+    GIVE_FEEDBACK_DISABLED_BTN = '#pendingFeedbackList .give-feedback-btn.disabled'
+    GIVE_FEEDBACK_DISABLED_BTN_FALLBACK = '#pendingFeedbackList .give-feedback-btn[disabled]'
+    GIVE_FEEDBACK_DISABLED_BTN_FALLBACK_2 = '#pendingFeedbackList [onclick*="giveFeedback"].disabled'
+    GIVE_FEEDBACK_DISABLED_BTN_FALLBACK_3 = '#pendingFeedbackList [onclick*="giveFeedback"][disabled]'
+
+    # Pending entries container rows (used for diagnostics and render-lag fallbacks).
+    PENDING_FEEDBACK_ITEM = '#pendingFeedbackList .feedback-item'
+    PENDING_FEEDBACK_ITEM_FALLBACK = '#pendingFeedbackList .pending-feedback-item'
+    PENDING_FEEDBACK_ITEM_FALLBACK_2 = '#pendingFeedbackList [data-date]'
     
 class FeedbackFormSelectors:
     # Submit button

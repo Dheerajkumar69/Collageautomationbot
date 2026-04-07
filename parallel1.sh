@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Set your registration number and password below
-export LMS_USERNAME="AU/2023/0009835"
-export LMS_PASSWORD="Pratik@2004"
+export LMS_USERNAME="AU/2025/0000143"
+export LMS_PASSWORD="Sudip@2006"
 
 # Activate the virtual environment if it exists
 if [ -d ".venv" ]; then

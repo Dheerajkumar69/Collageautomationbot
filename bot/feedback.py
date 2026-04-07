@@ -74,12 +74,33 @@ class FeedbackProcessor:
         try:
             self._open_subject_by_run_index(subject_index)
 
-            pending_count = self._count_current_pending_buttons()
+            declared_pending = self._get_declared_pending_for_subject(subject_index)
+            pending_count, pending_item_count, disabled_count = self._scan_pending_state(wait_timeout_ms=3200)
+
+            # Dashboard metadata says pending exists, but DOM has no actionable button yet.
+            # Re-open once to recover from modal hydration race conditions in headless runs.
+            if pending_count == 0 and (declared_pending or 0) > 0 and disabled_count == 0:
+                logger.warning(
+                    "Dashboard reports pending entries but no actionable button was detected. "
+                    "Refreshing subject panel once."
+                )
+                self._return_to_subject_list()
+                self._open_subject_by_run_index(subject_index)
+                pending_count, pending_item_count, disabled_count = self._scan_pending_state(wait_timeout_ms=3200)
+
             self.summary.total_pending_found += pending_count
             logger.info(f"Pending entries found: {pending_count}")
 
-            if pending_count == 0 and self._count_disabled_pending_buttons() > 0:
+            if pending_count == 0 and disabled_count > 0:
                 logger.info("Pending entries exist but are currently unavailable due LMS time restrictions.")
+            elif pending_count == 0 and (declared_pending or 0) > 0 and pending_item_count > 0:
+                logger.warning(
+                    "Pending rows are visible, but no clickable Give Feedback action is currently available."
+                )
+            elif pending_count == 0 and (declared_pending or 0) > 0:
+                logger.warning(
+                    "Dashboard shows pending entries, but subject details did not expose actionable rows."
+                )
 
             if pending_count == 0:
                 logger.info("No pending feedback for this subject.")
@@ -108,10 +129,14 @@ class FeedbackProcessor:
         while True:
             self._ensure_subject_dates_page(subject_index)
 
-            current_count = self._count_current_pending_buttons()
+            current_count, pending_item_count, disabled_count = self._scan_pending_state(wait_timeout_ms=1400)
 
-            if current_count == 0 and self._count_disabled_pending_buttons() > 0:
+            if current_count == 0 and disabled_count > 0:
                 logger.info("Remaining pending entries are currently unavailable (disabled by LMS window).")
+                break
+
+            if current_count == 0 and pending_item_count > 0:
+                logger.info("Pending rows remain but no clickable feedback action is currently available.")
                 break
 
             # If no more pending entries, we're done
@@ -399,7 +424,7 @@ class FeedbackProcessor:
     def _ensure_subject_dates_page(self, subject_index: int):
         """Ensure we are inside the current subject's date list before counting pending entries."""
         try:
-            if self._count_current_pending_buttons() > 0:
+            if self._count_current_pending_buttons() > 0 or self._count_pending_feedback_items() > 0:
                 return
 
             target = self._get_subject_target(subject_index)
@@ -606,10 +631,26 @@ class FeedbackProcessor:
 
         if "showSubjectFeedbackChart" not in decoded:
             return None
-        if ",[])" in compact:
+
+        # Primary signal: dashboard payload includes one object per pending entry.
+        payload_count = decoded.count("attendance_header_id")
+        if payload_count > 0:
+            return payload_count
+
+        # ",[])" means the pending-entries array argument is empty.
+        if ",[])" in compact or compact.endswith(",[])"):
             return 0
-        if "attendance_header_id" in decoded:
-            return decoded.count("attendance_header_id")
+
+        # Fallback: infer pending as (classes attended - feedback already given)
+        # from showSubjectFeedbackChart(subjectId, name, given, attended, percent, payload).
+        stats_match = re.search(
+            r"showSubjectFeedbackChart\(\s*'[^']*'\s*,\s*'[^']*'\s*,\s*(\d+)\s*,\s*(\d+)\s*,",
+            decoded,
+        )
+        if stats_match:
+            given_count = int(stats_match.group(1))
+            attended_count = int(stats_match.group(2))
+            return max(attended_count - given_count, 0)
 
         return None
 
@@ -674,6 +715,17 @@ class FeedbackProcessor:
             return None
         return self.subject_targets[run_index]
 
+    def _get_declared_pending_for_subject(self, run_index: int) -> int | None:
+        target = self._get_subject_target(run_index)
+        if target is None:
+            return None
+
+        declared = target.get("declared_pending")
+        if isinstance(declared, int) and declared >= 0:
+            return declared
+
+        return None
+
     def _open_subject_by_run_index(self, run_index: int):
         """Click the subject represented by run_index and wait for pending list state."""
         target = self._get_subject_target(run_index)
@@ -695,40 +747,75 @@ class FeedbackProcessor:
 
     def _wait_for_subject_panel(self):
         """Wait until modal/list/form state appears after subject click."""
-        deadline = time.time() + 10
+        # Phase 1: wait for the modal itself to open (Bootstrap adds .show / .in).
+        deadline = time.time() + 12
+        modal_opened = False
         while time.time() < deadline:
             lowered_url = self.page.url.lower()
             if "/give-feedback/" in lowered_url:
                 return
 
-            if self._count_current_pending_buttons() > 0:
-                return
+            # Modal is open when it carries the Bootstrap .show or .in class.
+            if self.page.locator(
+                "#subjectFeedbackModal.show, #subjectFeedbackModal.in"
+            ).count() > 0:
+                modal_opened = True
+                break
 
-            if self._count_disabled_pending_buttons() > 0:
-                return
-
+            # Some LMS builds navigate directly without a modal.
             if self._has_visible_match([
-                FeedbackDashboardSelectors.PENDING_FEEDBACK_LIST,
                 FeedbackDashboardSelectors.NO_PENDING_FEEDBACK_TEXT,
-                FeedbackDashboardSelectors.SUBJECT_FEEDBACK_MODAL_OPEN,
             ]):
                 return
 
+            self.page.wait_for_timeout(200)
+
+        if not modal_opened:
+            # Fall back: accept any panel-like state before giving up.
+            if self._count_current_pending_buttons() > 0:
+                return
+            if self._count_pending_feedback_items() > 0:
+                return
+            if self._count_disabled_pending_buttons() > 0:
+                return
+            return  # timed out but proceed anyway
+
+        # Phase 2: modal is open – wait for the AJAX call that populates
+        # #pendingFeedbackList to settle.  Disabled buttons may already be
+        # painted while enabled ones are still loading, so we must NOT bail out
+        # as soon as we see disabled buttons; give the list time to fully load.
+        ajax_deadline = time.time() + 6
+        while time.time() < ajax_deadline:
+            if "/give-feedback/" in self.page.url.lower():
+                return
+            if self._count_current_pending_buttons() > 0:
+                return  # found enabled buttons – done
+            if self._count_pending_feedback_items() > 0:
+                return  # pending rows rendered; action buttons may still be state-dependent
             self.page.wait_for_timeout(250)
 
+        # After the AJAX window, accept whatever state we have.
+        return
+
     def _get_pending_feedback_buttons(self):
-        """Return locator for enabled Give Feedback buttons in current subject context."""
-        return safe_locator_or(
-            self.page,
-            [
-                FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN,
-                FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN_FALLBACK,
-                FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN_FALLBACK_2,
-                FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN_FALLBACK_3,
-            ],
-            fallback_when_empty=False,
-            warn_on_empty=False,
-        )
+        """Return visible enabled Give Feedback buttons in current subject context."""
+        selectors = [
+            FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN,
+            FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN_FALLBACK,
+            FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN_FALLBACK_2,
+            FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN_FALLBACK_3,
+            FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN_FALLBACK_4,
+        ]
+
+        for selector in selectors:
+            try:
+                visible = self.page.locator(selector).locator(":visible")
+                if visible.count() > 0:
+                    return visible
+            except Exception:
+                continue
+
+        return None
 
     def _count_current_pending_buttons(self) -> int:
         buttons = self._get_pending_feedback_buttons()
@@ -739,11 +826,70 @@ class FeedbackProcessor:
         except Exception:
             return 0
 
+    def _count_pending_feedback_items(self) -> int:
+        """Count pending rows rendered in the current subject panel, regardless of button state."""
+        selectors = [
+            FeedbackDashboardSelectors.PENDING_FEEDBACK_ITEM,
+            FeedbackDashboardSelectors.PENDING_FEEDBACK_ITEM_FALLBACK,
+            FeedbackDashboardSelectors.PENDING_FEEDBACK_ITEM_FALLBACK_2,
+        ]
+
+        best_count = 0
+        for selector in selectors:
+            try:
+                count = self.page.locator(selector).locator(":visible").count()
+                if count > best_count:
+                    best_count = count
+            except Exception:
+                continue
+
+        return best_count
+
+    def _scan_pending_state(self, wait_timeout_ms: int = 0) -> tuple[int, int, int]:
+        """Return (enabled_buttons, pending_rows, disabled_buttons), with optional short polling."""
+        deadline = time.time() + (wait_timeout_ms / 1000.0) if wait_timeout_ms > 0 else None
+        best_enabled = 0
+        best_rows = 0
+        best_disabled = 0
+
+        while True:
+            enabled = self._count_current_pending_buttons()
+            rows = self._count_pending_feedback_items()
+            disabled = self._count_disabled_pending_buttons()
+
+            if enabled > best_enabled:
+                best_enabled = enabled
+            if rows > best_rows:
+                best_rows = rows
+            if disabled > best_disabled:
+                best_disabled = disabled
+
+            if enabled > 0:
+                return enabled, max(rows, enabled), disabled
+
+            if deadline is None or time.time() >= deadline:
+                return best_enabled, best_rows, best_disabled
+
+            self.page.wait_for_timeout(220)
+
     def _count_disabled_pending_buttons(self) -> int:
-        try:
-            return self.page.locator(FeedbackDashboardSelectors.GIVE_FEEDBACK_DISABLED_BTN).count()
-        except Exception:
-            return 0
+        selectors = [
+            FeedbackDashboardSelectors.GIVE_FEEDBACK_DISABLED_BTN,
+            FeedbackDashboardSelectors.GIVE_FEEDBACK_DISABLED_BTN_FALLBACK,
+            FeedbackDashboardSelectors.GIVE_FEEDBACK_DISABLED_BTN_FALLBACK_2,
+            FeedbackDashboardSelectors.GIVE_FEEDBACK_DISABLED_BTN_FALLBACK_3,
+        ]
+
+        best_count = 0
+        for selector in selectors:
+            try:
+                count = self.page.locator(selector).locator(":visible").count()
+                if count > best_count:
+                    best_count = count
+            except Exception:
+                continue
+
+        return best_count
 
     def _close_subject_modal_if_open(self) -> bool:
         """Close subject feedback modal if it is currently open."""

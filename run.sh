@@ -1,6 +1,8 @@
 #!/bin/bash
 # run.sh — local development helper
 # DO NOT hardcode credentials here. Use a .env file or pass them interactively.
+export LMS_USERNAME="AU/2025/0000143"
+export LMS_PASSWORD="Sudip@2006"
 
 # Load .env if it exists
 if [ -f ".env" ]; then
