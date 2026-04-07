@@ -13,3 +13,33 @@ services:
         value: "3.11.0"
       - key: PYTHONUNBUFFERED
         value: "1"
+
+  - type: worker
+    name: collageauto-waker
+    env: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python render_waker.py"
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: WAKER_TARGET_URL
+        value: "https://collageautomationbot.onrender.com"
+      - key: WAKER_ENDPOINTS
+        value: "/health,/"
+      - key: WAKER_INTERVAL_SECONDS
+        value: "840"
+      - key: WAKER_TIMEOUT_SECONDS
+        value: "20"
+      - key: WAKER_RETRIES
+        value: "3"
+      - key: WAKER_RETRY_BACKOFF_SECONDS
+        value: "5"
+      - key: WAKER_FAILURE_RETRY_SECONDS
+        value: "60"
+      - key: WAKER_MAX_JITTER_SECONDS
+        value: "20"
+      - key: WAKER_LOG_LEVEL
+        value: "INFO"

@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Emit a static site to `out/` for Netlify static hosting.
+  output: "export",
+
   // Allow any local network origin in dev (e.g. LAN IP access)
   allowedDevOrigins: ["localhost", "127.0.0.1"],
 
