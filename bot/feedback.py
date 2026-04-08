@@ -190,10 +190,19 @@ class FeedbackProcessor:
             give_feedback_btn, button_signature = next_btn
             before_click_url = self.page.url
             try:
-                give_feedback_btn.wait_for(state="visible", timeout=5000)
-                give_feedback_btn.click(force=True)
+                try:
+                    give_feedback_btn.scroll_into_view_if_needed(timeout=3000)
+                except Exception:
+                    pass
+
+                give_feedback_btn.click(timeout=7000)
             except PlaywrightTimeoutError:
                 logger.warning("Pending entry became unavailable before click. Skipping this entry.")
+                self.summary.total_skipped += 1
+                self._block_subject_entry(subject_index, button_signature, "")
+                return True
+            except Exception as click_error:
+                logger.warning(f"Give Feedback click failed for current entry. Skipping. reason={click_error}")
                 self.summary.total_skipped += 1
                 self._block_subject_entry(subject_index, button_signature, "")
                 return True
@@ -246,7 +255,14 @@ class FeedbackProcessor:
                     return True
                 raise RuntimeError("Feedback form loaded but submit button was not found.")
 
-            submit_btn.first.wait_for(state="visible", timeout=15000)
+            actionable_submit_btn = self._pick_actionable_locator(submit_btn)
+            if actionable_submit_btn is None:
+                if self.page.url == before_click_url:
+                    logger.warning("Give Feedback flow stayed on dashboard without actionable submit. Skipping entry.")
+                    self.summary.total_skipped += 1
+                    self._block_subject_entry(subject_index, button_signature, "")
+                    return True
+                raise RuntimeError("Feedback form loaded but submit button is not actionable.")
 
             if self.config.dry_run:
                 logger.info("[DRY RUN] Form loaded. Skipping actual submit.")
@@ -255,11 +271,11 @@ class FeedbackProcessor:
                 self._skip_current_feedback_date()
                 return True
 
-            safe_click(submit_btn.first)
+            safe_click(actionable_submit_btn)
 
             # Wait for form to close and page to settle
             try:
-                submit_btn.first.wait_for(state="hidden", timeout=20000)
+                actionable_submit_btn.wait_for(state="hidden", timeout=20000)
             except Exception:
                 logger.warning("Submit button never disappeared. Assuming success.")
 
@@ -282,15 +298,13 @@ class FeedbackProcessor:
 
     def _get_next_unblocked_feedback_button(self, subject_index: int):
         """Return next Give Feedback button that is not blocked for this subject."""
-        give_feedback_btn = self._get_pending_feedback_buttons()
-        if give_feedback_btn is None:
+        give_feedback_buttons = self._get_pending_feedback_buttons()
+        if not give_feedback_buttons:
             return None
 
-        count = give_feedback_btn.count()
         blocked = self.blocked_entries_by_subject.get(subject_index, set())
 
-        for i in range(count):
-            btn = give_feedback_btn.nth(i)
+        for i, btn in enumerate(give_feedback_buttons):
             signature = self._get_button_signature(btn, i)
             if signature and signature in blocked:
                 continue
@@ -301,16 +315,15 @@ class FeedbackProcessor:
 
     def _count_unblocked_entries_for_subject(self, subject_index: int) -> int:
         """Count currently visible Give Feedback buttons that are not blocked for this subject."""
-        give_feedback_btn = self._get_pending_feedback_buttons()
-        if give_feedback_btn is None:
+        give_feedback_buttons = self._get_pending_feedback_buttons()
+        if not give_feedback_buttons:
             return 0
 
-        count = give_feedback_btn.count()
         blocked = self.blocked_entries_by_subject.get(subject_index, set())
         unblocked = 0
 
-        for i in range(count):
-            sig = self._get_button_signature(give_feedback_btn.nth(i), i)
+        for i, btn in enumerate(give_feedback_buttons):
+            sig = self._get_button_signature(btn, i)
             if sig and sig in blocked:
                 continue
             unblocked += 1
@@ -370,6 +383,7 @@ class FeedbackProcessor:
             return self._has_visible_match([
                 FeedbackFormSelectors.ALREADY_SUBMITTED_BANNER,
                 FeedbackFormSelectors.ALREADY_SUBMITTED_TEXT,
+                FeedbackFormSelectors.ALREADY_SUBMITTED_TEXT_FALLBACK,
             ])
         except Exception as e:
             logger.debug(f"Could not check if feedback was already submitted: {e}")
@@ -398,7 +412,8 @@ class FeedbackProcessor:
                     continue
 
                 for i in range(min(count, max_scan)):
-                    if loc.nth(i).is_visible():
+                    candidate = loc.nth(i)
+                    if candidate.is_visible() or self._is_locator_rendered(candidate):
                         return True
             except Exception:
                 continue
@@ -798,7 +813,7 @@ class FeedbackProcessor:
         return
 
     def _get_pending_feedback_buttons(self):
-        """Return visible enabled Give Feedback buttons in current subject context."""
+        """Return rendered and enabled Give Feedback buttons in current subject context."""
         selectors = [
             FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN,
             FeedbackDashboardSelectors.GIVE_FEEDBACK_BTN_FALLBACK,
@@ -809,22 +824,27 @@ class FeedbackProcessor:
 
         for selector in selectors:
             try:
-                visible = self.page.locator(selector).locator(":visible")
-                if visible.count() > 0:
-                    return visible
+                locator = self.page.locator(selector)
+                count = locator.count()
+                if count == 0:
+                    continue
+
+                actionable = []
+                for i in range(count):
+                    candidate = locator.nth(i)
+                    if self._is_locator_actionable(candidate):
+                        actionable.append(candidate)
+
+                if actionable:
+                    return actionable
             except Exception:
                 continue
 
-        return None
+        return []
 
     def _count_current_pending_buttons(self) -> int:
         buttons = self._get_pending_feedback_buttons()
-        if buttons is None:
-            return 0
-        try:
-            return buttons.count()
-        except Exception:
-            return 0
+        return len(buttons)
 
     def _count_pending_feedback_items(self) -> int:
         """Count pending rows rendered in the current subject panel, regardless of button state."""
@@ -837,9 +857,18 @@ class FeedbackProcessor:
         best_count = 0
         for selector in selectors:
             try:
-                count = self.page.locator(selector).locator(":visible").count()
-                if count > best_count:
-                    best_count = count
+                locator = self.page.locator(selector)
+                count = locator.count()
+                if count == 0:
+                    continue
+
+                rendered = 0
+                for i in range(count):
+                    if self._is_locator_rendered(locator.nth(i)):
+                        rendered += 1
+
+                if rendered > best_count:
+                    best_count = rendered
             except Exception:
                 continue
 
@@ -883,13 +912,83 @@ class FeedbackProcessor:
         best_count = 0
         for selector in selectors:
             try:
-                count = self.page.locator(selector).locator(":visible").count()
-                if count > best_count:
-                    best_count = count
+                locator = self.page.locator(selector)
+                count = locator.count()
+                if count == 0:
+                    continue
+
+                rendered = 0
+                for i in range(count):
+                    if self._is_locator_rendered(locator.nth(i)):
+                        rendered += 1
+
+                if rendered > best_count:
+                    best_count = rendered
             except Exception:
                 continue
 
         return best_count
+
+    def _is_locator_rendered(self, locator) -> bool:
+        """Best-effort rendered check that tolerates headless/headful style-transition lag."""
+        try:
+            return bool(locator.evaluate(
+                """(el) => {
+                    if (!el || !el.isConnected) {
+                        return false;
+                    }
+                    const style = window.getComputedStyle(el);
+                    if (!style || style.display === 'none' || style.visibility === 'hidden') {
+                        return false;
+                    }
+                    const rect = el.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0;
+                }"""
+            ))
+        except Exception:
+            return False
+
+    def _is_locator_actionable(self, locator) -> bool:
+        """Check whether a button is rendered and can receive pointer interaction."""
+        try:
+            if not locator.is_enabled():
+                return False
+        except Exception:
+            return False
+
+        if not self._is_locator_rendered(locator):
+            return False
+
+        try:
+            blocks_pointer = bool(locator.evaluate(
+                """(el) => {
+                    const style = window.getComputedStyle(el);
+                    return !!style && style.pointerEvents === 'none';
+                }"""
+            ))
+            if blocks_pointer:
+                return False
+        except Exception:
+            pass
+
+        return True
+
+    def _pick_actionable_locator(self, locators, max_scan: int = 10):
+        """Return first actionable locator from a locator group."""
+        if locators is None:
+            return None
+
+        try:
+            count = locators.count()
+        except Exception:
+            return None
+
+        for i in range(min(count, max_scan)):
+            candidate = locators.nth(i)
+            if self._is_locator_actionable(candidate):
+                return candidate
+
+        return None
 
     def _close_subject_modal_if_open(self) -> bool:
         """Close subject feedback modal if it is currently open."""

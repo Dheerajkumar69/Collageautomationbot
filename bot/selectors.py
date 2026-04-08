@@ -46,7 +46,7 @@ class FeedbackDashboardSelectors:
 
     # Modal/list markers for modern feedback dashboard.
     SUBJECT_FEEDBACK_MODAL = '#subjectFeedbackModal'
-    SUBJECT_FEEDBACK_MODAL_OPEN = '#subjectFeedbackModal.in'
+    SUBJECT_FEEDBACK_MODAL_OPEN = '#subjectFeedbackModal.show, #subjectFeedbackModal.in'
     PENDING_FEEDBACK_LIST = '#pendingFeedbackList'
     NO_PENDING_FEEDBACK_TEXT = '#noFeedbackResults, text=No pending feedback'
 
@@ -80,8 +80,9 @@ class FeedbackFormSelectors:
     SUBMIT_BTN_FALLBACK_3 = 'input[type="submit"]'
     
     # Already submitted detection
-    ALREADY_SUBMITTED_BANNER = '.feedback-already-given:visible'
-    ALREADY_SUBMITTED_TEXT = '.feedback-already-given:visible p:has-text("already provided feedback")'
+    ALREADY_SUBMITTED_BANNER = '.feedback-already-given'
+    ALREADY_SUBMITTED_TEXT = '.feedback-already-given p:has-text("already provided feedback")'
+    ALREADY_SUBMITTED_TEXT_FALLBACK = 'text=/already (provided|submitted) feedback/i'
 
     # Date-level error after clicking Give Feedback
     NO_CLASSES_FOR_DATE_ERROR = '#toast-container .toast.toast-error .toast-message:has-text("No classes found for this subject on the selected date.")'

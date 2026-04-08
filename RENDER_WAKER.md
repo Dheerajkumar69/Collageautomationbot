@@ -5,7 +5,7 @@ This project now includes a production-grade waker process in render_waker.py.
 ## What It Does
 
 - Sends periodic HTTP requests to keep your Render web service active.
-- Defaults to 840 seconds (14 minutes), safely under the 15-minute idle sleep window.
+- Defaults to 780 seconds (13 minutes), safely under the 15-minute idle sleep window.
 - Uses endpoint fallback (/health, then /) if one endpoint fails.
 - Retries failed requests with exponential backoff.
 - Retries quickly after failed cycles to recover fast.
@@ -43,6 +43,7 @@ If your deployed backend URL differs, update WAKER_TARGET_URL in Render dashboar
 - WAKER_RETRY_BACKOFF_SECONDS: Initial backoff. Default: 5.
 - WAKER_FAILURE_RETRY_SECONDS: Delay after failed cycle. Default: 60.
 - WAKER_MAX_JITTER_SECONDS: Early jitter to fire before exact interval. Default: 20.
+- WAKER_PROCESS_HEARTBEAT_SECONDS: Emits periodic "alive" logs while waiting for next ping. Default: 60.
 - WAKER_EXPECTED_STATUS_MIN: Minimum accepted status. Default: 200.
 - WAKER_EXPECTED_STATUS_MAX: Maximum accepted status. Default: 399.
 - WAKER_VERIFY_SSL: true or false. Default: true.

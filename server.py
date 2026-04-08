@@ -40,6 +40,13 @@ def _env_int(name: str, default: int, minimum: int = 1) -> int:
     return max(parsed, minimum)
 
 
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 MAX_QUEUE_DEPTH = _env_int("RUN_QUEUE_MAX_DEPTH", 5)
 QUEUE_HEARTBEAT_SECONDS = _env_int("RUN_QUEUE_HEARTBEAT_SECONDS", 5)
 STREAM_HEARTBEAT_SECONDS = _env_int("RUN_STREAM_HEARTBEAT_SECONDS", 15)
@@ -143,6 +150,9 @@ async def _run_bot_generator(username: str, password: str, request_id: str, init
     process: asyncio.subprocess.Process | None = None
 
     try:
+        run_headful = _env_flag("BOT_HEADFUL", False)
+        run_dry_run = _env_flag("BOT_DRY_RUN", False)
+
         if initial_position > 0:
             yield f"data: [QUEUED] position={initial_position}\n\n"
             yield f"data: Request accepted. Queue position: {initial_position}\n\n"
@@ -151,7 +161,7 @@ async def _run_bot_generator(username: str, password: str, request_id: str, init
             yield queue_line
 
         yield "data: [STARTED]\n\n"
-        yield "data: Execution slot acquired. Starting headless automation...\n\n"
+        yield f"data: Execution slot acquired. Starting {'headful' if run_headful else 'headless'} automation...\n\n"
 
         env = os.environ.copy()
         env["LMS_USERNAME"] = username
@@ -165,9 +175,14 @@ async def _run_bot_generator(username: str, password: str, request_id: str, init
         env["BOT_SERVER_MODE"] = "1"
         env["REQUEST_ID"] = request_id
 
+        cmd = [sys.executable, "main.py"]
+        if run_headful:
+            cmd.append("--headful")
+        if run_dry_run:
+            cmd.append("--dry-run")
+
         process = await asyncio.create_subprocess_exec(
-            sys.executable,
-            "main.py",
+            *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
             env=env,

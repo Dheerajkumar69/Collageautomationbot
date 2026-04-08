@@ -99,11 +99,13 @@ class BrowserManager:
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 viewport={"width": 1920, "height": 1080},
                 screen={"width": 1920, "height": 1080},
+                timezone_id=self.config.timezone_id,
             )
         else:
             self.context = self.browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 no_viewport=True,
+                timezone_id=self.config.timezone_id,
             )
         
         self.page = self.context.new_page()

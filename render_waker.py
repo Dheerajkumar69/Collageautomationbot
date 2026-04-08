@@ -2,7 +2,7 @@
 """Render server waker.
 
 Keeps a Render web service warm by periodically pinging one or more endpoints,
-defaulting to every 14 minutes (840 seconds), which is below Render's 15-minute
+defaulting to every 13 minutes (780 seconds), which is below Render's 15-minute
 idle sleep window.
 """
 
@@ -23,12 +23,13 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlparse
 from urllib.request import Request, urlopen
 
-DEFAULT_INTERVAL_SECONDS = 14 * 60
+DEFAULT_INTERVAL_SECONDS = 13 * 60
 DEFAULT_TIMEOUT_SECONDS = 20
 DEFAULT_RETRIES = 3
 DEFAULT_RETRY_BACKOFF_SECONDS = 5.0
 DEFAULT_FAILURE_RETRY_SECONDS = 60
 DEFAULT_MAX_JITTER_SECONDS = 20
+DEFAULT_PROCESS_HEARTBEAT_SECONDS = 60
 DEFAULT_ENDPOINTS = ("/health", "/")
 DEFAULT_USER_AGENT = "collageauto-render-waker/1.0"
 
@@ -54,6 +55,7 @@ class WakerConfig:
     retry_backoff_seconds: float
     failure_retry_seconds: int
     max_jitter_seconds: int
+    process_heartbeat_seconds: int
     expected_status_min: int
     expected_status_max: int
     verify_ssl: bool
@@ -161,12 +163,32 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Keep a Render web service awake via periodic pings")
     parser.add_argument("--target-url", help="Base URL of the Render web service (e.g. https://my-app.onrender.com)")
     parser.add_argument("--endpoints", help="Comma-separated endpoints or absolute URLs (default: /health,/)")
-    parser.add_argument("--interval-seconds", type=int, help="Heartbeat interval (default: 840)")
-    parser.add_argument("--timeout-seconds", type=int, help="Per-request timeout (default: 20)")
-    parser.add_argument("--retries", type=int, help="Retries after first failure (default: 3)")
-    parser.add_argument("--retry-backoff-seconds", type=float, help="Initial retry backoff in seconds (default: 5)")
-    parser.add_argument("--failure-retry-seconds", type=int, help="Retry delay after a failed cycle (default: 60)")
-    parser.add_argument("--max-jitter-seconds", type=int, help="Max early jitter to fire before interval (default: 20)")
+    parser.add_argument("--interval-seconds", type=int, help=f"Heartbeat interval (default: {DEFAULT_INTERVAL_SECONDS})")
+    parser.add_argument("--timeout-seconds", type=int, help=f"Per-request timeout (default: {DEFAULT_TIMEOUT_SECONDS})")
+    parser.add_argument("--retries", type=int, help=f"Retries after first failure (default: {DEFAULT_RETRIES})")
+    parser.add_argument(
+        "--retry-backoff-seconds",
+        type=float,
+        help=f"Initial retry backoff in seconds (default: {DEFAULT_RETRY_BACKOFF_SECONDS})",
+    )
+    parser.add_argument(
+        "--failure-retry-seconds",
+        type=int,
+        help=f"Retry delay after a failed cycle (default: {DEFAULT_FAILURE_RETRY_SECONDS})",
+    )
+    parser.add_argument(
+        "--max-jitter-seconds",
+        type=int,
+        help=f"Max early jitter to fire before interval (default: {DEFAULT_MAX_JITTER_SECONDS})",
+    )
+    parser.add_argument(
+        "--process-heartbeat-seconds",
+        type=int,
+        help=(
+            "Emit an 'alive' log line while waiting for next ping "
+            f"(default: {DEFAULT_PROCESS_HEARTBEAT_SECONDS}, 0 disables)"
+        ),
+    )
     parser.add_argument("--expected-status-min", type=int, help="Minimum acceptable status code (default: 200)")
     parser.add_argument("--expected-status-max", type=int, help="Maximum acceptable status code (default: 399)")
     parser.add_argument("--verify-ssl", choices=["true", "false"], help="Verify SSL certs (default: true)")
@@ -238,6 +260,15 @@ def _load_config(args: argparse.Namespace) -> tuple[WakerConfig, str]:
     if max_jitter_seconds >= interval_seconds:
         raise ConfigError("Max jitter must be smaller than interval")
 
+    process_heartbeat_seconds = args.process_heartbeat_seconds
+    if process_heartbeat_seconds is None:
+        process_heartbeat_seconds = _parse_int(
+            "WAKER_PROCESS_HEARTBEAT_SECONDS",
+            os.environ.get("WAKER_PROCESS_HEARTBEAT_SECONDS"),
+            DEFAULT_PROCESS_HEARTBEAT_SECONDS,
+            0,
+        )
+
     expected_status_min = args.expected_status_min
     if expected_status_min is None:
         expected_status_min = _parse_int(
@@ -279,6 +310,7 @@ def _load_config(args: argparse.Namespace) -> tuple[WakerConfig, str]:
         retry_backoff_seconds=retry_backoff_seconds,
         failure_retry_seconds=failure_retry_seconds,
         max_jitter_seconds=max_jitter_seconds,
+        process_heartbeat_seconds=process_heartbeat_seconds,
         expected_status_min=expected_status_min,
         expected_status_max=expected_status_max,
         verify_ssl=verify_ssl,
@@ -349,6 +381,7 @@ def _ping_cycle(config: WakerConfig, urls: Sequence[str], stop_event: threading.
 
     for attempt in range(1, attempts + 1):
         for url in urls:
+            logging.info("Pinging url=%s attempt=%s/%s", url, attempt, attempts)
             result = _ping_url(config, url)
             if result.ok:
                 if attempt > 1:
@@ -398,12 +431,13 @@ def run(config: WakerConfig) -> int:
     _install_signal_handlers(stop_event)
 
     logging.info(
-        "Starting Render waker target=%s urls=%s interval=%ss timeout=%ss retries=%s",
+        "Starting Render waker target=%s urls=%s interval=%ss timeout=%ss retries=%s heartbeat=%ss",
         config.target_url,
         list(urls),
         config.interval_seconds,
         config.timeout_seconds,
         config.retries,
+        config.process_heartbeat_seconds,
     )
 
     cycle = 0
@@ -414,7 +448,18 @@ def run(config: WakerConfig) -> int:
     while not stop_event.is_set():
         now = time.monotonic()
         if now < next_run:
-            stop_event.wait(next_run - now)
+            remaining = next_run - now
+            heartbeat = float(config.process_heartbeat_seconds)
+            sleep_for = remaining
+            if heartbeat > 0:
+                sleep_for = min(remaining, heartbeat)
+
+            if stop_event.wait(sleep_for):
+                break
+
+            if heartbeat > 0 and sleep_for < remaining:
+                seconds_left = max(0, int(next_run - time.monotonic()))
+                logging.info("Waker alive. Next ping in %ss", seconds_left)
             continue
 
         cycle += 1

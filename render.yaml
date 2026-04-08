@@ -27,13 +27,19 @@ services:
         value: "1"
       - key: BOT_SERVER_MODE
         value: "1"
+      - key: BOT_TIMEZONE
+        value: "Asia/Kolkata"
+      - key: BOT_HEADFUL
+        value: "0"
+      - key: BOT_DRY_RUN
+        value: "0"
 
   - type: worker
     name: collageauto-waker
     env: python
     plan: free
     buildCommand: "PIP_DISABLE_PIP_VERSION_CHECK=1 pip install -r requirements-worker.txt"
-    startCommand: "python render_waker.py"
+    startCommand: "python -u render_waker.py"
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.0"
@@ -44,16 +50,18 @@ services:
       - key: WAKER_ENDPOINTS
         value: "/health,/"
       - key: WAKER_INTERVAL_SECONDS
-        value: "840"
+        value: "780"
       - key: WAKER_TIMEOUT_SECONDS
-        value: "20"
+        value: "15"
       - key: WAKER_RETRIES
-        value: "3"
+        value: "5"
       - key: WAKER_RETRY_BACKOFF_SECONDS
         value: "5"
       - key: WAKER_FAILURE_RETRY_SECONDS
-        value: "60"
+        value: "20"
       - key: WAKER_MAX_JITTER_SECONDS
         value: "20"
+      - key: WAKER_PROCESS_HEARTBEAT_SECONDS
+        value: "60"
       - key: WAKER_LOG_LEVEL
         value: "INFO"

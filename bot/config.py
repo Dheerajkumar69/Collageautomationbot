@@ -20,6 +20,7 @@ class Config:
     # Browser Config
     timeout_ms: int = 30000
     navigation_timeout_ms: int = 60000
+    timezone_id: str = field(default_factory=lambda: os.getenv("BOT_TIMEZONE", "Asia/Kolkata"))
     
     # Logic Config
     max_retries: int = 3
