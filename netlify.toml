@@ -8,7 +8,7 @@
   # Set this to your Render backend URL before deploying.
   # Example: "https://collageauto-backend.onrender.com"
   # You can also override this in the Netlify dashboard → Site settings → Environment variables.
-  NEXT_PUBLIC_API_URL       = "https://collageauto-backend.onrender.com"
+  NEXT_PUBLIC_API_URL       = "https://collageautomationbot.onrender.com"
   NPM_FLAGS                 = "--legacy-peer-deps"
 
 # Serve all routes from index.html (required for static Next.js export)

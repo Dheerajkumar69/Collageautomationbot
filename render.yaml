@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: collageauto-backend
+    name: collageautomationbot
     env: python
     plan: free
     buildCommand: >
@@ -46,7 +46,7 @@ services:
       - key: PYTHONUNBUFFERED
         value: "1"
       - key: WAKER_TARGET_URL
-        value: "https://collageauto-backend.onrender.com"
+        value: "https://collageautomationbot.onrender.com"
       - key: WAKER_ENDPOINTS
         value: "/health,/"
       # ── Timing ──────────────────────────────────────────────────────────────
