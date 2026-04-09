@@ -253,13 +253,22 @@ export default function Home() {
       const ctrl = new AbortController();
       abortRef.current = ctrl;
       let connectTimedOut = false;
-      const CONNECT_TIMEOUT_MS = 30_000;
+      const CONNECT_TIMEOUT_MS = 70_000;  // Render free tier cold-starts can take 30-60s
+      const COLD_START_WARN_MS = 15_000;  // tell user to wait if no reply after 15s
       const STALL_WARNING_MS = 45_000;
       let lastChunkAt = Date.now();
       let connectTimer: number | undefined;
       let stallTimer: number | undefined;
+      let coldStartTimer: number | undefined;
 
       addLog("⚡  Connecting to automation server…");
+
+      // Warn the user if the backend is cold-starting (no response within 15s)
+      coldStartTimer = window.setTimeout(() => {
+        if (!connectTimedOut) {
+          addLog("🥶  Backend may be cold-starting — please wait up to 60 s…");
+        }
+      }, COLD_START_WARN_MS);
 
       try {
         const baseUrl =
@@ -419,6 +428,9 @@ export default function Home() {
       } finally {
         if (connectTimer !== undefined) {
           window.clearTimeout(connectTimer);
+        }
+        if (coldStartTimer !== undefined) {
+          window.clearTimeout(coldStartTimer);
         }
         if (stallTimer !== undefined) {
           window.clearInterval(stallTimer);
