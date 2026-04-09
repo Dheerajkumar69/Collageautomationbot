@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import os
 import re
 import sys
@@ -12,7 +13,25 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, field_validator
 
-app = FastAPI(title="LMS Auto-Feedback API", version="1.0.0")
+
+# ── Queue state ───────────────────────────────────────────────────────────────
+# Initialized inside lifespan() so they are bound to uvicorn's event loop,
+# not the import-time loop (which may differ or not exist yet).
+_RUN_QUEUE_CONDITION: asyncio.Condition | None = None
+_ACTIVE_REQUEST_ID: Optional[str] = None
+_WAITING_REQUEST_IDS: deque[str] = deque()
+
+
+@contextlib.asynccontextmanager
+async def _lifespan(app: FastAPI):  # noqa: ARG001
+    """Initialize async primitives bound to uvicorn's event loop."""
+    global _RUN_QUEUE_CONDITION
+    _RUN_QUEUE_CONDITION = asyncio.Condition()
+    yield
+    # Cleanup on shutdown (nothing to clean up, but lifespan pattern is correct here)
+
+
+app = FastAPI(title="LMS Auto-Feedback API", version="1.0.0", lifespan=_lifespan)
 
 # ── CORS ───────────────────────────────────────────────────────────────────────
 # Allow all origins so the Netlify-hosted frontend can reach this Render backend.
@@ -51,9 +70,6 @@ MAX_QUEUE_DEPTH = _env_int("RUN_QUEUE_MAX_DEPTH", 5)
 QUEUE_HEARTBEAT_SECONDS = _env_int("RUN_QUEUE_HEARTBEAT_SECONDS", 5)
 STREAM_HEARTBEAT_SECONDS = _env_int("RUN_STREAM_HEARTBEAT_SECONDS", 15)
 
-_RUN_QUEUE_CONDITION = asyncio.Condition()
-_ACTIVE_REQUEST_ID: Optional[str] = None
-_WAITING_REQUEST_IDS: deque[str] = deque()
 
 
 # ── Request schema ─────────────────────────────────────────────────────────────
@@ -89,6 +105,7 @@ def _sanitize_stream_line(text: str, username: str, password: str) -> str:
 async def _queue_enter(request_id: str) -> tuple[bool, int]:
     """Return (accepted, queue_position). Position 0 means run immediately."""
     global _ACTIVE_REQUEST_ID
+    assert _RUN_QUEUE_CONDITION is not None, "Queue condition not initialized (lifespan not started)"
 
     async with _RUN_QUEUE_CONDITION:
         if _ACTIVE_REQUEST_ID is None and not _WAITING_REQUEST_IDS:
@@ -103,6 +120,7 @@ async def _queue_enter(request_id: str) -> tuple[bool, int]:
 
 
 async def _queue_wait_for_turn(request_id: str):
+    assert _RUN_QUEUE_CONDITION is not None, "Queue condition not initialized"
     while True:
         position = 0
         timed_out = False
@@ -128,6 +146,7 @@ async def _queue_wait_for_turn(request_id: str):
 
 async def _queue_exit(request_id: str) -> None:
     global _ACTIVE_REQUEST_ID
+    assert _RUN_QUEUE_CONDITION is not None, "Queue condition not initialized"
 
     async with _RUN_QUEUE_CONDITION:
         if _ACTIVE_REQUEST_ID == request_id:

@@ -72,7 +72,10 @@ class BrowserManager:
                 "--disable-blink-features=AutomationControlled",
                 "--window-size=1920,1080",
                 "--no-sandbox",
+                "--disable-setuid-sandbox",
                 "--disable-dev-shm-usage",
+                "--disable-gpu",                   # required on Render's headless Linux
+                "--disable-software-rasterizer",   # prevent GPU fallback that hangs
             ],
         )
 

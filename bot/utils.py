@@ -41,12 +41,13 @@ def safe_locator_or(
     poll_interval_ms = max(50, int(poll_interval_ms))
 
     while True:
-        # Try each selector in order, return first visible match, then attached match.
+        # Try each selector in order; prefer visible/attached matches.
         for selector in selectors_list:
             try:
                 locator = page.locator(selector)
 
-                visible_locator = locator.locator(":visible")
+                # Filter to visible elements first (modern Playwright API, no :visible pseudo-class)
+                visible_locator = locator.filter(visible=True)
                 if visible_locator.count() > 0:
                     logger.debug(f"✓ Visible selector matched: {selector[:60]}...")
                     return visible_locator

@@ -5,7 +5,7 @@ services:
     plan: free
     buildCommand: >
       PIP_DISABLE_PIP_VERSION_CHECK=1 pip install -r requirements.txt &&
-      PLAYWRIGHT_BROWSERS_PATH=/opt/render/project/src/.playwright-browsers python -m playwright install --only-shell chromium
+      PLAYWRIGHT_BROWSERS_PATH=/opt/render/project/src/.playwright-browsers python -m playwright install chromium --only-shell
     startCommand: "uvicorn server:app --host 0.0.0.0 --port $PORT"
     healthCheckPath: /health
     envVars:
@@ -49,18 +49,36 @@ services:
         value: "https://collageautomationbot.onrender.com"
       - key: WAKER_ENDPOINTS
         value: "/health,/"
+      # ── Timing ──────────────────────────────────────────────────────────────
+      # 600 s (10 min) — 5-minute headroom under Render's 15-min idle sleep.
       - key: WAKER_INTERVAL_SECONDS
-        value: "780"
+        value: "600"
+      # 30 s — survives Render cold-boot latency (can be 20-30 s on free tier).
       - key: WAKER_TIMEOUT_SECONDS
+        value: "30"
+      # ── Jitter ──────────────────────────────────────────────────────────────
+      # Always fire between 30 s and 60 s EARLY, never at the exact deadline.
+      - key: WAKER_MIN_JITTER_SECONDS
+        value: "30"
+      - key: WAKER_MAX_JITTER_SECONDS
+        value: "60"
+      # ── Startup ─────────────────────────────────────────────────────────────
+      # Wait 15 s after worker starts before the first ping — lets the backend
+      # web service finish its own cold-boot so we don't race it.
+      - key: WAKER_STARTUP_DELAY_SECONDS
         value: "15"
+      # ── Retries & recovery ───────────────────────────────────────────────────
       - key: WAKER_RETRIES
         value: "5"
       - key: WAKER_RETRY_BACKOFF_SECONDS
         value: "5"
+      # 30 s retry after failure — recover faster than the default interval.
       - key: WAKER_FAILURE_RETRY_SECONDS
-        value: "20"
-      - key: WAKER_MAX_JITTER_SECONDS
-        value: "20"
+        value: "30"
+      # Log a CRITICAL alert after 3 consecutive failures.
+      - key: WAKER_ALERT_AFTER_FAILURES
+        value: "3"
+      # ── Misc ────────────────────────────────────────────────────────────────
       - key: WAKER_PROCESS_HEARTBEAT_SECONDS
         value: "60"
       - key: WAKER_LOG_LEVEL
