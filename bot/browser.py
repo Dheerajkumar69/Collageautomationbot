@@ -39,7 +39,8 @@ class BrowserManager:
             cmd = [sys.executable, "-m", "playwright", "install"]
             if headless:
                 # Headless shell is smaller and faster to download for server workloads.
-                cmd.extend(["--only-shell", "chromium"])
+                # Correct syntax: playwright install chromium --only-shell
+                cmd.extend(["chromium", "--only-shell"])
             else:
                 cmd.append("chromium")
 

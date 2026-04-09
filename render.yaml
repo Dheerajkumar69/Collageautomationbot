@@ -46,7 +46,7 @@ services:
       - key: PYTHONUNBUFFERED
         value: "1"
       - key: WAKER_TARGET_URL
-        value: "https://collageautomationbot.onrender.com"
+        value: "https://collageauto-backend.onrender.com"
       - key: WAKER_ENDPOINTS
         value: "/health,/"
       # ── Timing ──────────────────────────────────────────────────────────────
