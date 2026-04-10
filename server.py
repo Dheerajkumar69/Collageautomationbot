@@ -26,6 +26,9 @@ _WAITING_REQUEST_IDS: deque[str] = deque()
 # Stores: username, student_name (from [BOT_META] line), start_time (epoch float).
 _REQUEST_META: dict[str, dict] = {}
 
+# Live subprocess handles — keyed by request_id so DELETE /api/run/{id} can kill them.
+_ACTIVE_PROCESSES: dict[str, asyncio.subprocess.Process] = {}
+
 # Estimated seconds a typical full automation run takes on the free Render tier.
 _ETA_PER_RUN_SECONDS: int = int(os.getenv("BOT_ETA_SECONDS", "90"))
 
@@ -47,8 +50,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=False,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Accept", "Cache-Control"],
+    expose_headers=["X-Request-Id"],
 )
 
 # Absolute path of the project root (same directory as server.py)
@@ -228,6 +232,7 @@ async def _run_bot_generator(username: str, password: str, request_id: str, init
             env=env,
             cwd=str(PROJECT_ROOT),
         )
+        _ACTIVE_PROCESSES[request_id] = process
 
         assert process.stdout is not None
 
@@ -278,6 +283,7 @@ async def _run_bot_generator(username: str, password: str, request_id: str, init
         yield f"data: [ERROR] Server runtime failure: {exc}\n\n"
         yield "data: [FAILED]\n\n"
     finally:
+        _ACTIVE_PROCESSES.pop(request_id, None)
         if process and process.returncode is None:
             try:
                 process.terminate()
@@ -347,6 +353,29 @@ def get_queue():
         "waiting": waiting,
         "etaPerRunSeconds": _ETA_PER_RUN_SECONDS,
     })
+
+
+@app.delete("/api/run/{request_id}")
+async def cancel_run(request_id: str):
+    """
+    Immediately kill a running/queued bot process and remove it from the queue.
+    Called by the frontend Stop button so the server-side run is truly terminated.
+    """
+    process = _ACTIVE_PROCESSES.get(request_id)
+    if process and process.returncode is None:
+        try:
+            process.terminate()
+            await asyncio.wait_for(process.wait(), timeout=5)
+        except Exception:
+            try:
+                process.kill()
+                await process.wait()
+            except Exception:
+                pass
+        _ACTIVE_PROCESSES.pop(request_id, None)
+
+    await _queue_exit(request_id)
+    return JSONResponse({"cancelled": True, "requestId": request_id})
 
 
 @app.post("/api/run")

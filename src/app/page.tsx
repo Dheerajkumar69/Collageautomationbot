@@ -376,6 +376,7 @@ export default function Home() {
   const abortRef   = useRef<AbortController | null>(null);
   const logIdRef   = useRef(0);
   const termRef    = useRef<HTMLDivElement>(null);
+  const requestIdRef = useRef<string | null>(null);
 
   // Auto-scroll terminal
   useEffect(() => {
@@ -463,6 +464,10 @@ export default function Home() {
           signal:  ctrl.signal,
         });
         window.clearTimeout(connectTimer);
+
+        // Capture request ID so Stop can cancel server-side
+        const rid = response.headers.get("x-request-id") ?? response.headers.get("X-Request-Id") ?? null;
+        requestIdRef.current = rid;
 
         if (!response.ok) {
           let errBody = "";
@@ -613,12 +618,24 @@ export default function Home() {
         }
         setIsRunning(false);
         abortRef.current = null;
+        requestIdRef.current = null;
       }
     },
     [username, password, isRunning, addLog]
   );
 
-  const handleStop = () => abortRef.current?.abort();
+  const handleStop = useCallback(() => {
+    // 1. Abort the frontend SSE stream
+    abortRef.current?.abort();
+    // 2. Tell the server to kill the subprocess and clear the queue entry
+    const rid = requestIdRef.current;
+    if (rid) {
+      const baseUrl =
+        (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "") ||
+        "http://localhost:8000";
+      fetch(`${baseUrl}/api/run/${rid}`, { method: "DELETE" }).catch(() => {});
+    }
+  }, []);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") { e.preventDefault(); handleStart(); }
@@ -661,10 +678,11 @@ export default function Home() {
       <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-6 lg:gap-8 items-start">
 
         {/* ─── LEFT: Form panel ─────────────────────────────────────────── */}
-        <div
-          className="glass-card p-6 sm:p-8 flex flex-col gap-6 shadow-2xl animate-fade-in-up"
-          style={{ animationDelay: "80ms" }}
-        >
+        <div className="flex flex-col gap-4">
+          <div
+            className="glass-card p-6 sm:p-8 flex flex-col gap-6 shadow-2xl animate-fade-in-up"
+            style={{ animationDelay: "80ms" }}
+          >
           {/* Form */}
           <form onSubmit={handleStart} className="flex flex-col gap-5 pt-2" noValidate>
 
@@ -814,6 +832,10 @@ export default function Home() {
           </div>
         </div>
 
+          {/* Queue panel — sits in the black space below the form card */}
+          <QueuePanel queue={queue} myUsername={username} />
+        </div>
+
         {/* ─── RIGHT: Terminal panel ────────────────────────────────────── */}
         <div
           className="flex flex-col h-[520px] sm:h-[580px] rounded-2xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)] shadow-2xl overflow-hidden animate-fade-in-up"
@@ -922,11 +944,6 @@ export default function Home() {
           </div>
         </div>
 
-      </div>
-
-      {/* ── Queue panel (shown below grid when anyone is running/queued) ─── */}
-      <div className="w-full max-w-5xl mt-4">
-        <QueuePanel queue={queue} myUsername={username} />
       </div>
 
       {/* ── Footer ──────────────────────────────────────────────────────────── */}
