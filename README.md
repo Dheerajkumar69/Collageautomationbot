@@ -14,7 +14,7 @@
 [![Playwright](https://img.shields.io/badge/Playwright-1.49-2EAD33?style=flat-square&logo=playwright&logoColor=white)](https://playwright.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 
-[**Live Demo**](https://collageautomationbot.netlify.app) · [**Report Bug**](https://github.com/Dheerajkumar69/Collageautomationbot/issues) · [**Request Feature**](https://github.com/Dheerajkumar69/Collageautomationbot/issues)
+[**Live Demo**](https://lmsfeedback.netlify.app) · [**Report Bug**](https://github.com/Dheerajkumar69/Collageautomationbot/issues) · [**Request Feature**](https://github.com/Dheerajkumar69/Collageautomationbot/issues)
 
 </div>
 
@@ -88,7 +88,7 @@ Render Waker (separate Render worker)
 
 > Just visit the live frontend — no setup needed!
 
-1. Go to **[collageautomationbot.netlify.app](https://collageautomationbot.netlify.app)**
+1. Go to **[lmsfeedback.netlify.app](https://lmsfeedback.netlify.app)**
 2. Enter your **Registration Number** (e.g. `AU/2025/0001234`)
 3. Enter your **LMS password**
 4. Hit **Start Automation** and watch the terminal stream live
