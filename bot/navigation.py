@@ -7,12 +7,14 @@ class NavigationHandler:
     def __init__(self, page: Page):
         self.page = page
 
-    @with_retry(max_retries=3, delay=2.0)
+    @with_retry(max_retries=3, delay=1.0)
     def go_to_feedback(self, force_reload: bool = False):
         logger.info("Navigating to Feedback section...")
         try:
+            # If force_reload is requested, yield to the event loop briefly
+            # so any in-flight navigation settles before we touch the DOM.
             if force_reload:
-                self.page.wait_for_load_state("domcontentloaded", timeout=20000)
+                self.page.wait_for_load_state("domcontentloaded", timeout=10000)
 
             # If feedback section is already rendered on dashboard, no extra click is needed.
             if self.page.locator(SidebarSelectors.FEEDBACK_DASHBOARD_TITLE).count() > 0:
@@ -39,8 +41,8 @@ class NavigationHandler:
             if direct_feedback_link.count() > 0 and "academicfeedback" not in self.page.url.lower():
                 safe_click(direct_feedback_link.first)
             
-            # Await dynamic DOM reconstruction
-            self.page.wait_for_load_state("networkidle", timeout=30000)
+            # Use domcontentloaded — networkidle on LMS can block 2–6 s due to ads/analytics.
+            self.page.wait_for_load_state("domcontentloaded", timeout=20000)
             logger.debug("Arrived at Feedback Dashboard.")
         except Exception as e:
             logger.error(f"Failed to navigate to Feedback: {e}")

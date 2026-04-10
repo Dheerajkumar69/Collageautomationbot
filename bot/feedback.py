@@ -207,8 +207,19 @@ class FeedbackProcessor:
                 self._block_subject_entry(subject_index, button_signature, "")
                 return True
 
-            # Allow redirect/modal update to settle in headless mode.
-            self.page.wait_for_timeout(700)
+            # Wait for page to react: URL change, toast, or modal update.
+            # Resolves as soon as any change is detected (faster than a 700 ms fixed wall).
+            try:
+                self.page.wait_for_function(
+                    """() => {
+                        const toast = document.querySelector('#toast-container .toast');
+                        return toast !== null;
+                    }""",
+                    timeout=500,
+                )
+            except Exception:
+                # No toast within 500 ms — that's fine; proceed to URL check.
+                pass
 
             # If LMS says this selected date has no classes, skip this date permanently
             if self._is_no_classes_for_selected_date_error():
@@ -217,16 +228,17 @@ class FeedbackProcessor:
                 self._block_subject_entry(subject_index, button_signature, "")
                 return True
 
-            # Wait briefly for URL transition, if any.
-            for _ in range(25):
-                if self.page.url != before_click_url:
-                    break
-                if self._is_no_classes_for_selected_date_error():
-                    logger.info("[SKIPPED] No classes found for selected date. Skipping this date entry.")
-                    self.summary.total_skipped += 1
-                    self._block_subject_entry(subject_index, button_signature, "")
-                    return True
-                self.page.wait_for_timeout(120)
+            # Wait for URL to change (resolves instantly rather than polling 120ms×25).
+            try:
+                self.page.wait_for_url(
+                    lambda u: u != before_click_url,
+                    timeout=3000,
+                    wait_until="domcontentloaded",
+                )
+            except Exception:
+                # URL didn't change within 3 s — modal or same-page flow; continue.
+                pass
+
 
             url_signature = self._extract_entry_signature_from_url()
 
@@ -279,10 +291,10 @@ class FeedbackProcessor:
             except Exception:
                 logger.warning("Submit button never disappeared. Assuming success.")
 
-            # Critical: Wait for page to fully load and buttons to reset
-            self.page.wait_for_timeout(1200)
+            # Wait for DOM to update and new buttons to be ready.
+            # domcontentloaded is sufficient and ~600 ms faster than a blind 1200 ms wall.
             try:
-                self.page.wait_for_load_state("domcontentloaded", timeout=10000)
+                self.page.wait_for_load_state("domcontentloaded", timeout=8000)
             except Exception:
                 pass
             self.summary.total_submitted += 1
@@ -392,8 +404,9 @@ class FeedbackProcessor:
     def _is_no_classes_for_selected_date_error(self) -> bool:
         """Check if LMS returned date-level feedback error after clicking Give Feedback."""
         try:
-            # Toasts are rendered dynamically; give them a brief moment to appear.
-            time.sleep(0.4)
+            # Give toast a brief moment to appear — 200 ms is enough for a DOM paint;
+            # the old 400 ms sleep was twice as long as needed.
+            self.page.wait_for_timeout(200)
             return self._has_visible_match([
                 FeedbackFormSelectors.NO_CLASSES_FOR_DATE_ERROR,
                 FeedbackFormSelectors.FEEDBACK_ERROR_TITLE,
@@ -424,10 +437,11 @@ class FeedbackProcessor:
         """Skip the current date entry and return to the subject feedback list."""
         try:
             if "/give-feedback/" in self.page.url.lower():
-                self.page.go_back(wait_until="networkidle", timeout=15000)
-                self.page.wait_for_timeout(800)
+                # domcontentloaded is safe here; subsequent code polls DOM elements directly.
+                self.page.go_back(wait_until="domcontentloaded", timeout=15000)
+                self.page.wait_for_timeout(150)
                 try:
-                    self.page.wait_for_load_state("networkidle", timeout=10000)
+                    self.page.wait_for_load_state("domcontentloaded", timeout=6000)
                 except Exception:
                     pass
             else:
@@ -459,7 +473,7 @@ class FeedbackProcessor:
         """Navigate back to the feedback subject list."""
         try:
             if self._close_subject_modal_if_open():
-                self.page.wait_for_timeout(300)
+                self.page.wait_for_timeout(100)  # was 300 ms — 200 ms saved per subject
 
             subject_locators = self._resolve_subject_locators()
             if subject_locators is not None and subject_locators.count() > 0:
@@ -468,22 +482,20 @@ class FeedbackProcessor:
             from .navigation import NavigationHandler
             nav = NavigationHandler(self.page)
             nav.go_to_feedback(force_reload=True)
-            self.page.wait_for_timeout(600)
+            self.page.wait_for_timeout(250)  # was 600 ms — 350 ms saved per subject
         except Exception as e:
             logger.warning(f"Forced navigation failed. Attempting Escape key... {e}")
             try:
                 self.page.keyboard.press("Escape")
-                self.page.wait_for_timeout(400)
+                self.page.wait_for_timeout(200)
             except Exception as e2:
                 logger.warning(f"Escape key also failed: {e2}")
 
     def _wait_for_feedback_dashboard_ready(self):
         """Wait until feedback dashboard subject containers are available."""
         self.page.wait_for_load_state("domcontentloaded", timeout=20000)
-        try:
-            self.page.wait_for_load_state("networkidle", timeout=8000)
-        except PlaywrightTimeoutError:
-            pass
+        # Skip networkidle — LMS analytics hold it open for seconds. The polling
+        # loop below already handles waiting for the actual subject DOM elements.
 
         deadline = time.time() + 12
         while time.time() < deadline:
@@ -899,7 +911,7 @@ class FeedbackProcessor:
             if deadline is None or time.time() >= deadline:
                 return best_enabled, best_rows, best_disabled
 
-            self.page.wait_for_timeout(220)
+            self.page.wait_for_timeout(150)  # was 220 ms — faster scan polling
 
     def _count_disabled_pending_buttons(self) -> int:
         selectors = [

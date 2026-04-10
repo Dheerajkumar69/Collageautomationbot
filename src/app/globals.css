@@ -152,6 +152,11 @@ body {
   50%       { opacity: 0; }
 }
 
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(1.4); }
+}
+
 /* ── Utility classes ─────────────────────────────────────────────── */
 .animate-fade-in-up {
   animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -163,6 +168,10 @@ body {
 
 .animate-blink {
   animation: blink-cursor 1s step-end infinite;
+}
+
+.animate-status-pulse {
+  animation: status-pulse 1.5s ease-in-out infinite;
 }
 
 /* ── Panel / Card ────────────────────────────────────────────────── */

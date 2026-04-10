@@ -18,6 +18,21 @@ interface LogEntry {
   kind: "info" | "success" | "error" | "warn" | "divider" | "system";
 }
 
+interface QueueEntry {
+  requestId: string;
+  username: string;
+  studentName: string;
+  position: number;
+  etaSeconds: number;
+}
+
+interface QueueData {
+  active: QueueEntry | null;
+  waiting: QueueEntry[];
+  etaPerRunSeconds: number;
+}
+
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function classifyLog(text: string): LogEntry["kind"] {
   if (text.startsWith("─") || text.startsWith("—")) return "divider";
@@ -129,6 +144,141 @@ function IconPalette({ className }: { className?: string }) {
   );
 }
 
+function IconClock({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+    </svg>
+  );
+}
+
+function IconQueue({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" />
+    </svg>
+  );
+}
+
+// ── ETA formatter ─────────────────────────────────────────────────────────────────
+function formatEta(seconds: number): string {
+  if (seconds <= 0) return "finishing up…";
+  if (seconds < 60) return `~${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return s === 0 ? `~${m}m` : `~${m}m ${s}s`;
+}
+
+function maskUsername(u: string): string {
+  if (u.length <= 4) return u;
+  return u.slice(0, 3) + "*".repeat(Math.min(u.length - 4, 4)) + u.slice(-1);
+}
+
+// ── Queue Panel component ────────────────────────────────────────────────────────────
+function QueuePanel({ queue, myUsername }: { queue: QueueData | null; myUsername: string }) {
+  const active = queue?.active ?? null;
+  const waiting = queue?.waiting ?? [];
+  const total = (active ? 1 : 0) + waiting.length;
+
+  if (total === 0) return null;
+
+  return (
+    <div className="glass-card p-5 sm:p-6 animate-fade-in-up" style={{ animationDelay: "240ms" }}>
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-4">
+        <IconQueue className="w-4 h-4 text-[var(--color-accent)]" />
+        <span className="text-xs font-semibold text-[var(--text-dim)] uppercase tracking-widest">
+          Live Queue
+        </span>
+        <span className="ml-auto text-[10px] font-mono text-[var(--text-muted)] bg-[var(--bg-input)] border border-[var(--border)] px-2 py-0.5 rounded-full">
+          {total} {total === 1 ? "runner" : "runners"}
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        {/* Active runner */}
+        {active && (
+          <div
+            className="flex items-center gap-3 px-4 py-3 rounded-xl border"
+            style={{
+              background: "var(--bg-input)",
+              borderColor: "var(--color-accent)",
+              boxShadow: "0 0 0 1px var(--color-accent) inset",
+            }}
+          >
+            {/* Pulse dot */}
+            <span className="relative flex-shrink-0">
+              <span className="w-2 h-2 rounded-full bg-[var(--color-accent)] block animate-status-pulse" />
+            </span>
+
+            {/* Name + reg */}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-[var(--text-primary)] truncate">
+                {active.studentName || maskUsername(active.username)}
+                {active.username.toUpperCase() === myUsername.toUpperCase() && (
+                  <span className="ml-2 text-[10px] font-mono text-[var(--color-accent)] border border-[var(--color-accent)] rounded px-1 py-px opacity-80">
+                    YOU
+                  </span>
+                )}
+              </p>
+              <p className="text-[11px] font-mono text-[var(--text-muted)] mt-0.5">
+                {maskUsername(active.username)}
+              </p>
+            </div>
+
+            {/* ETA badge */}
+            <div className="flex items-center gap-1 text-[11px] font-mono text-[var(--color-accent)] flex-shrink-0">
+              <IconClock className="w-3 h-3" />
+              <span>{formatEta(active.etaSeconds)}</span>
+            </div>
+
+            {/* Running label */}
+            <span className="text-[10px] font-medium bg-[var(--color-accent)] text-[var(--bg-base)] rounded-full px-2 py-0.5 flex-shrink-0">
+              Running
+            </span>
+          </div>
+        )}
+
+        {/* Queued runners */}
+        {waiting.map((entry) => (
+          <div
+            key={entry.requestId}
+            className="flex items-center gap-3 px-4 py-3 rounded-xl border border-[var(--border)] bg-[var(--bg-card)]"
+          >
+            {/* Position bubble */}
+            <span className="w-6 h-6 flex-shrink-0 rounded-full border border-[var(--border)] flex items-center justify-center text-[10px] font-mono text-[var(--text-muted)]">
+              {entry.position}
+            </span>
+
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-[var(--text-dim)] truncate">
+                {entry.studentName || maskUsername(entry.username)}
+                {entry.username.toUpperCase() === myUsername.toUpperCase() && (
+                  <span className="ml-2 text-[10px] font-mono text-[var(--color-accent)] border border-[var(--color-accent)] rounded px-1 py-px opacity-80">
+                    YOU
+                  </span>
+                )}
+              </p>
+              <p className="text-[11px] font-mono text-[var(--text-muted)] mt-0.5">
+                {maskUsername(entry.username)}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-1 text-[11px] font-mono text-[var(--text-muted)] flex-shrink-0">
+              <IconClock className="w-3 h-3" />
+              <span>{formatEta(entry.etaSeconds)}</span>
+            </div>
+
+            <span className="text-[10px] font-medium text-[var(--text-muted)] border border-[var(--border)] rounded-full px-2 py-0.5 flex-shrink-0">
+              Queued
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Spinner SVG ────────────────────────────────────────────────────────────────
 function Spinner({ size = 16 }: { size?: number }) {
   return (
@@ -185,6 +335,8 @@ export default function Home() {
   const [status, setStatus]       = useState<Status>("idle");
   const [errorMsg, setErrorMsg]   = useState("");
   const [copied, setCopied]       = useState(false);
+  const [queue, setQueue]         = useState<QueueData | null>(null);
+
 
   // Themes
   const themes = ["dark", "light", "cat", "synthwave"];
@@ -195,6 +347,30 @@ export default function Home() {
   }, [themeIdx, themes]);
 
   const cycleTheme = () => setThemeIdx((prev) => (prev + 1) % themes.length);
+
+  // ── Queue polling ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const baseUrl =
+      (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "") ||
+      "http://localhost:8000";
+
+    let alive = true;
+    const poll = async () => {
+      try {
+        const res = await fetch(`${baseUrl}/api/queue`, { cache: "no-store" });
+        if (res.ok && alive) {
+          const data: QueueData = await res.json();
+          setQueue(data);
+        }
+      } catch {
+        // silently ignore — queue panel is non-critical
+      }
+    };
+
+    poll(); // immediate on mount
+    const id = setInterval(poll, 3000); // poll every 3 s
+    return () => { alive = false; clearInterval(id); };
+  }, []);
 
   const bottomRef  = useRef<HTMLDivElement>(null);
   const abortRef   = useRef<AbortController | null>(null);
@@ -748,10 +924,16 @@ export default function Home() {
 
       </div>
 
+      {/* ── Queue panel (shown below grid when anyone is running/queued) ─── */}
+      <div className="w-full max-w-5xl mt-4">
+        <QueuePanel queue={queue} myUsername={username} />
+      </div>
+
       {/* ── Footer ──────────────────────────────────────────────────────────── */}
       <p className="mt-10 text-center text-[11px] text-[var(--text-muted)] animate-fade-in-up" style={{ animationDelay: "300ms" }}>
         LMS Auto-Feedback · Runs headless Playwright in the cloud · No data is stored
       </p>
+
     </main>
   );
 }

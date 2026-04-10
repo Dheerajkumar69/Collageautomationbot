@@ -3,6 +3,7 @@ import contextlib
 import os
 import re
 import sys
+import time
 from collections import deque
 from pathlib import Path
 from typing import Optional
@@ -21,6 +22,12 @@ _RUN_QUEUE_CONDITION: asyncio.Condition | None = None
 _ACTIVE_REQUEST_ID: Optional[str] = None
 _WAITING_REQUEST_IDS: deque[str] = deque()
 
+# Per-request metadata keyed by request_id.
+# Stores: username, student_name (from [BOT_META] line), start_time (epoch float).
+_REQUEST_META: dict[str, dict] = {}
+
+# Estimated seconds a typical full automation run takes on the free Render tier.
+_ETA_PER_RUN_SECONDS: int = int(os.getenv("BOT_ETA_SECONDS", "90"))
 
 @contextlib.asynccontextmanager
 async def _lifespan(app: FastAPI):  # noqa: ARG001
@@ -102,17 +109,26 @@ def _sanitize_stream_line(text: str, username: str, password: str) -> str:
     return sanitized
 
 
-async def _queue_enter(request_id: str) -> tuple[bool, int]:
+async def _queue_enter(request_id: str, username: str) -> tuple[bool, int]:
     """Return (accepted, queue_position). Position 0 means run immediately."""
     global _ACTIVE_REQUEST_ID
     assert _RUN_QUEUE_CONDITION is not None, "Queue condition not initialized (lifespan not started)"
 
     async with _RUN_QUEUE_CONDITION:
+        meta = {
+            "username": username,
+            "student_name": "",
+            "start_time": None,  # set when run actually begins
+        }
+        _REQUEST_META[request_id] = meta
+
         if _ACTIVE_REQUEST_ID is None and not _WAITING_REQUEST_IDS:
             _ACTIVE_REQUEST_ID = request_id
+            meta["start_time"] = time.time()
             return True, 0
 
         if len(_WAITING_REQUEST_IDS) >= MAX_QUEUE_DEPTH:
+            _REQUEST_META.pop(request_id, None)
             return False, -1
 
         _WAITING_REQUEST_IDS.append(request_id)
@@ -152,9 +168,13 @@ async def _queue_exit(request_id: str) -> None:
         if _ACTIVE_REQUEST_ID == request_id:
             if _WAITING_REQUEST_IDS:
                 _ACTIVE_REQUEST_ID = _WAITING_REQUEST_IDS.popleft()
+                # Record when this newly-active request actually starts running.
+                if _ACTIVE_REQUEST_ID in _REQUEST_META:
+                    _REQUEST_META[_ACTIVE_REQUEST_ID]["start_time"] = time.time()
             else:
                 _ACTIVE_REQUEST_ID = None
             _RUN_QUEUE_CONDITION.notify_all()
+            _REQUEST_META.pop(request_id, None)
             return
 
         try:
@@ -162,6 +182,7 @@ async def _queue_exit(request_id: str) -> None:
             _RUN_QUEUE_CONDITION.notify_all()
         except ValueError:
             pass
+        _REQUEST_META.pop(request_id, None)
 
 
 # ── SSE generator ──────────────────────────────────────────────────────────────
@@ -223,11 +244,16 @@ async def _run_bot_generator(username: str, password: str, request_id: str, init
 
             if not line:
                 break
-            text = _sanitize_stream_line(
-                line.decode("utf-8", errors="replace").strip(),
-                username=username,
-                password=password,
-            )
+            raw_text = line.decode("utf-8", errors="replace").strip()
+
+            # Intercept [BOT_META] lines to populate queue metadata (not sent to client).
+            if "[BOT_META]" in raw_text:
+                meta_match = re.search(r"student_name=(.+)$", raw_text)
+                if meta_match and request_id in _REQUEST_META:
+                    _REQUEST_META[request_id]["student_name"] = meta_match.group(1).strip()
+                continue  # do not forward meta lines to the SSE stream
+
+            text = _sanitize_stream_line(raw_text, username=username, password=password)
             if text:
                 yield f"data: {text}\n\n"
 
@@ -280,6 +306,49 @@ def health():
     )
 
 
+@app.get("/api/queue")
+def get_queue():
+    """Return live queue state for the frontend queue panel."""
+    now = time.time()
+
+    def _format_entry(request_id: str, position: int) -> dict:
+        meta = _REQUEST_META.get(request_id, {})
+        start = meta.get("start_time")
+        if position == 0 and start is not None:
+            # Active run: ETA = estimated_total - elapsed (floor at 0)
+            elapsed = now - start
+            eta_secs = max(0, int(_ETA_PER_RUN_SECONDS - elapsed))
+        else:
+            # Queued: active run remaining + (position * full ETA)
+            active_meta = _REQUEST_META.get(_ACTIVE_REQUEST_ID or "", {})
+            active_start = active_meta.get("start_time")
+            active_remaining = max(0, _ETA_PER_RUN_SECONDS - (now - active_start)) if active_start else _ETA_PER_RUN_SECONDS
+            eta_secs = int(active_remaining + position * _ETA_PER_RUN_SECONDS)
+
+        return {
+            "requestId": request_id,
+            "username": meta.get("username", ""),
+            "studentName": meta.get("student_name", ""),
+            "position": position,
+            "etaSeconds": eta_secs,
+        }
+
+    active: dict | None = None
+    if _ACTIVE_REQUEST_ID:
+        active = _format_entry(_ACTIVE_REQUEST_ID, 0)
+
+    waiting = [
+        _format_entry(rid, idx + 1)
+        for idx, rid in enumerate(_WAITING_REQUEST_IDS)
+    ]
+
+    return JSONResponse({
+        "active": active,
+        "waiting": waiting,
+        "etaPerRunSeconds": _ETA_PER_RUN_SECONDS,
+    })
+
+
 @app.post("/api/run")
 async def run_bot(req: RunRequest):
     """
@@ -287,7 +356,7 @@ async def run_bot(req: RunRequest):
     The frontend reads the stream and renders each line in the live terminal.
     """
     request_id = uuid4().hex[:10]
-    accepted, position = await _queue_enter(request_id)
+    accepted, position = await _queue_enter(request_id, req.username)
     if not accepted:
         return JSONResponse(
             {

@@ -20,7 +20,7 @@ def safe_locator_or(
     page: Page,
     selectors_list: Sequence[str],
     wait_timeout_ms: int = 0,
-    poll_interval_ms: int = 300,
+    poll_interval_ms: int = 150,
     fallback_when_empty: bool = True,
     warn_on_empty: bool = True,
 ) -> Locator | None:

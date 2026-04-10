@@ -67,18 +67,77 @@ class BrowserManager:
     def _launch_browser(self) -> Browser:
         if self.playwright is None:
             raise RuntimeError("Playwright is not initialized")
+
+        extra_args = [
+            "--disable-blink-features=AutomationControlled",
+            "--window-size=1920,1080",
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",                   # required on Render's headless Linux
+            "--disable-software-rasterizer",   # prevent GPU fallback that hangs
+        ]
+
+        if self.config.headless:
+            # Speed-up flags: skip image decoding & unnecessary features in headless runs.
+            extra_args += [
+                "--blink-settings=imagesEnabled=false",
+                "--disable-background-networking",
+                "--disable-client-side-phishing-detection",
+                "--disable-default-apps",
+                "--disable-extensions",
+                "--disable-hang-monitor",
+                "--disable-popup-blocking",
+                "--disable-prompt-on-repost",
+                "--disable-sync",
+                "--disable-translate",
+                "--metrics-recording-only",
+                "--mute-audio",
+                "--no-first-run",
+                "--safebrowsing-disable-auto-update",
+            ]
+
         return self.playwright.chromium.launch(
             headless=self.config.headless,
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--window-size=1920,1080",
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-gpu",                   # required on Render's headless Linux
-                "--disable-software-rasterizer",   # prevent GPU fallback that hangs
-            ],
+            args=extra_args,
         )
+
+    # Resource types that serve zero purpose in a headless automation run.
+    # NOTE: Do NOT block 'websocket' — Playwright sync API cannot safely abort
+    # websocket upgrades and will raise an error on some LMS builds.
+    _BLOCKED_RESOURCE_TYPES = {"image", "media", "font"}
+
+    # Known tracking / analytics hostnames that add network latency for nothing.
+    # NOTE: Do NOT block cdn.jsdelivr.net — many Bootstrap/jQuery LMS sites load
+    # critical JS (modals, dropdowns) from there; blocking it kills functionality.
+    _BLOCKED_RESOURCE_HOSTS = {
+        "google-analytics.com",
+        "googletagmanager.com",
+        "doubleclick.net",
+        "facebook.net",
+        "hotjar.com",
+        "clarity.ms",
+    }
+
+    def _setup_resource_blocking(self) -> None:
+        """Abort resource requests that automation never needs (headless only)."""
+        if not self.config.headless or self.context is None:
+            return
+
+        def _route_handler(route, request):
+            resource_type = request.resource_type
+            if resource_type in self._BLOCKED_RESOURCE_TYPES:
+                route.abort()
+                return
+            # Block known tracking/analytics hosts by substring match.
+            url = request.url
+            for blocked_host in self._BLOCKED_RESOURCE_HOSTS:
+                if blocked_host in url:
+                    route.abort()
+                    return
+            route.continue_()
+
+        self.context.route("**/*", _route_handler)
 
     def start(self) -> Page:
         logger.info("Initializing Playwright browser...")
@@ -97,7 +156,7 @@ class BrowserManager:
             self._install_chromium(self.config.headless)
             self.playwright = sync_playwright().start()
             self.browser = self._launch_browser()
-        
+
         if self.config.headless:
             self.context = self.browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -111,7 +170,10 @@ class BrowserManager:
                 no_viewport=True,
                 timezone_id=self.config.timezone_id,
             )
-        
+
+        # Block heavyweight resources in headless mode before the first page load.
+        self._setup_resource_blocking()
+
         self.page = self.context.new_page()
         self.page.set_default_timeout(self.config.timeout_ms)
         self.page.set_default_navigation_timeout(self.config.navigation_timeout_ms)
