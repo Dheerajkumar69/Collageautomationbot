@@ -180,6 +180,41 @@ class BrowserManager:
         
         return self.page
 
+    def clear_session(self) -> None:
+        """Clear cookies and browser storage between subjects to reduce memory footprint.
+        
+        Safely handles cases where context/page may not be fully initialized.
+        All operations are exception-safe to prevent cascade failures.
+        """
+        # Safety checks: ensure context and page exist
+        if not hasattr(self, 'context') or self.context is None:
+            logger.debug("Cannot clear session: context not initialized")
+            return
+        
+        if not hasattr(self, 'page') or self.page is None:
+            logger.debug("Cannot clear session: page not initialized")
+            return
+        
+        # Clear cookies - single operation, atomic
+        try:
+            self.context.clear_cookies()
+            logger.debug("Cleared browser cookies")
+        except Exception as e:
+            logger.debug(f"Error clearing cookies (non-critical): {e}")
+        
+        # Clear session/local storage - safe JavaScript execution with fallbacks
+        try:
+            self.page.evaluate("""
+                () => {
+                    try { sessionStorage.clear(); } catch (e) {}
+                    try { localStorage.clear(); } catch (e) {}
+                    return true;
+                }
+            """)
+            logger.debug("Cleared browser storage")
+        except Exception as e:
+            logger.debug(f"Error clearing storage (non-critical): {e}")
+
     def close(self):
         logger.info("Cleaning up browser context...")
         if self.context:

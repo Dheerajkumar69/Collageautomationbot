@@ -1,10 +1,15 @@
 import logging
 import os
 import sys
-from rich.logging import RichHandler
-from rich.console import Console
 
-console = Console()
+# Rich is optional and only used locally (not in server mode)
+try:
+    from rich.logging import RichHandler
+    from rich.console import Console
+    console = Console()
+    HAS_RICH = True
+except ImportError:
+    HAS_RICH = False
 
 def _is_server_mode() -> bool:
     """Detect if running inside the FastAPI server (no colour output wanted)."""
@@ -24,11 +29,11 @@ def setup_logger(debug: bool = False) -> logging.Logger:
     so that log lines arrive at the SSE client without ANSI escape codes or
     Rich markup tags that would corrupt the terminal UI.
 
-    In interactive/local mode we use RichHandler for pretty output.
+    In interactive/local mode we use RichHandler if available, otherwise plain.
     """
     level = logging.DEBUG if debug else logging.INFO
 
-    if _is_server_mode():
+    if _is_server_mode() or not HAS_RICH:
         # Plain formatter — no colour, no markup, no boxes.
         handler = logging.StreamHandler(sys.stdout)
         handler.setFormatter(
@@ -52,7 +57,7 @@ logger = setup_logger()
 
 
 def print_summary(summary):
-    if _is_server_mode():
+    if _is_server_mode() or not HAS_RICH:
         # Plain output — no ANSI / Rich markup that would corrupt the SSE stream.
         print()
         print("================ SUMMARY ================")

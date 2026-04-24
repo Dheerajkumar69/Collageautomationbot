@@ -58,7 +58,7 @@ def main():
         nav = NavigationHandler(page)
         nav.go_to_feedback()
         
-        processor = FeedbackProcessor(page, config)
+        processor = FeedbackProcessor(page, config, browser_manager)
         summary = processor.process_all()
         
         print_summary(summary)

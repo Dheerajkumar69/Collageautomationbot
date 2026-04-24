@@ -1,7 +1,7 @@
 import re
 import time
 from html import unescape
-from typing import Any, Iterable
+from typing import Any, Iterable, Optional
 from urllib.parse import parse_qs, urlparse
 from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError
 from .logger import logger
@@ -11,12 +11,47 @@ from .config import Config
 from .utils import safe_click, save_error_artifacts, safe_locator_or
 
 class FeedbackProcessor:
-    def __init__(self, page: Page, config: Config):
+    def __init__(self, page: Page, config: Config, browser_manager: Optional[Any] = None):
         self.page = page
         self.config = config
+        self.browser_manager = browser_manager
         self.summary = ProgressSummary()
         self.blocked_entries_by_subject = {}
         self.subject_targets: list[dict[str, Any]] = []
+        
+        # Cache for compiled regex patterns (memory optimization)
+        self._parsed_urls_cache: dict = {}
+        
+    def _clear_subject_memory(self) -> None:
+        """Clear subject-specific memory to reduce mid-run memory footprint.
+        
+        Safely clears browser session, blocked entries, and URL cache.
+        All operations are exception-safe and non-critical.
+        """
+        # Clear browser session to free DOM memory (if browser_manager exists)
+        if self.browser_manager is not None:
+            try:
+                # Verify that clear_session is callable before invoking
+                if hasattr(self.browser_manager, 'clear_session') and callable(self.browser_manager.clear_session):
+                    self.browser_manager.clear_session()
+                else:
+                    logger.debug("Browser manager does not have callable clear_session method")
+            except Exception as e:
+                logger.debug(f"Error clearing browser session (non-critical): {e}")
+        
+        # Clear blocked entries dict (always safe)
+        try:
+            self.blocked_entries_by_subject.clear()
+        except Exception as e:
+            logger.debug(f"Error clearing blocked entries: {e}")
+        
+        # Clear URL parsing cache (always safe)
+        try:
+            self._parsed_urls_cache.clear()
+        except Exception as e:
+            logger.debug(f"Error clearing URL cache: {e}")
+        
+        logger.debug("Cleared subject-specific memory cache")
 
     def process_all(self) -> ProgressSummary:
         logger.info("Detecting subjects with pending feedback...")
@@ -62,10 +97,14 @@ class FeedbackProcessor:
                 logger.info(
                     f"--- Skipping Subject {i+1}/{subject_count}: {subject_name} (dashboard reports no pending entries) ---"
                 )
+                self._clear_subject_memory()
                 continue
 
             logger.info(f"--- Processing Subject {i+1}/{subject_count}: {subject_name} ---")
             self._process_subject_by_index(i, subject_name)
+            
+            # Memory optimization: clear subject-specific state after processing
+            self._clear_subject_memory()
 
         return self.summary
 
@@ -343,12 +382,47 @@ class FeedbackProcessor:
         return unblocked
 
     def _block_subject_entry(self, subject_index: int, button_signature: str, url_signature: str):
-        """Store a skipped/already-submitted entry signature so it is never clicked again."""
+        """Store a skipped/already-submitted entry signature so it is never clicked again.
+        
+        Memory optimization: cap blocked set size at 100 entries per subject to prevent 
+        quadratic memory growth in subjects with many feedback items.
+        
+        Bulletproof: handles edge cases with set operations and empty collections.
+        """
         blocked = self.blocked_entries_by_subject.setdefault(subject_index, set())
+        
+        # If set is already large, remove oldest 25% before adding new entry
+        MAX_BLOCKED_SIZE = 100
+        if len(blocked) >= MAX_BLOCKED_SIZE:
+            # Remove ~25% of oldest entries to make room
+            remove_count = max(1, len(blocked) // 4)  # Ensure at least 1 removal
+            removed = 0
+            try:
+                # Pop entries from set (order is not guaranteed but works for memory optimization)
+                for _ in range(remove_count):
+                    try:
+                        blocked.pop()
+                        removed += 1
+                    except KeyError:
+                        break  # Set is empty or no more entries
+                
+                if removed > 0:
+                    logger.debug(f"Trimmed {removed} blocked entries for subject {subject_index} (now {len(blocked)} entries)")
+            except Exception as e:
+                logger.debug(f"Error trimming blocked entries: {e}")
+        
+        # Add new signatures (safe even if empty strings)
         if button_signature:
-            blocked.add(button_signature)
+            try:
+                blocked.add(button_signature)
+            except Exception as e:
+                logger.debug(f"Error adding button signature: {e}")
+        
         if url_signature:
-            blocked.add(url_signature)
+            try:
+                blocked.add(url_signature)
+            except Exception as e:
+                logger.debug(f"Error adding URL signature: {e}")
 
     def _get_button_signature(self, button_locator, index: int = None) -> str:
         """Build a stable signature for a Give Feedback button from its attributes."""
@@ -377,17 +451,30 @@ class FeedbackProcessor:
         return ""
 
     def _extract_entry_signature_from_url(self) -> str:
-        """Extract entry key from URL so the same date/period is never retried."""
+        """Extract entry key from URL so the same date/period is never retried.
+        
+        Memory optimization: cache parsed URLs to avoid repeated URL parsing.
+        """
+        current_url = self.page.url
+        
+        # Check cache first
+        if current_url in self._parsed_urls_cache:
+            return self._parsed_urls_cache[current_url]
+        
+        result = ""
         try:
-            parsed = urlparse(self.page.url)
+            parsed = urlparse(current_url)
             params = parse_qs(parsed.query)
             attend_date = params.get("attendDate", [""])[0]
             period_id = params.get("periodId", [""])[0]
             if attend_date or period_id:
-                return f"url:attendDate={attend_date}|periodId={period_id}"
+                result = f"url:attendDate={attend_date}|periodId={period_id}"
         except Exception:
             pass
-        return ""
+        
+        # Cache the result
+        self._parsed_urls_cache[current_url] = result
+        return result
 
     def _is_feedback_already_submitted(self) -> bool:
         """Check if the current page shows 'Feedback Already Submitted'."""

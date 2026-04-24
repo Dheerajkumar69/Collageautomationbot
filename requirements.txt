@@ -1,6 +1,16 @@
-playwright>=1.42.0
-python-dotenv>=1.0.1
-rich>=13.7.1
-fastapi>=0.110.0
-uvicorn>=0.28.0
-pydantic>=2.6.0
+# Playwright for headless browser automation (chromium-only install on build)
+playwright==1.48.1
+
+# Lightweight config loading
+python-dotenv==1.0.1
+
+# FastAPI + ASGI server (pinned for stability)
+fastapi==0.115.6
+uvicorn[standard]==0.31.1
+pydantic==2.9.3
+
+# Performance: faster event loop for uvicorn
+uvloop==0.20.0
+
+# Optional: lightweight alternative to rich if needed
+# pygments==2.18.0  # for syntax highlighting without rich overhead

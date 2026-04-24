@@ -4,7 +4,7 @@ import os
 import re
 import sys
 import time
-from collections import deque
+from collections import OrderedDict, deque
 from pathlib import Path
 from typing import Optional
 from uuid import uuid4
@@ -15,6 +15,60 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, field_validator
 
 
+# ── LRU Dict for bounded request metadata ──────────────────────────────────────
+class LRURequestMetadata:
+    """Thread-safe LRU dict that auto-evicts oldest entries when capacity exceeded."""
+    def __init__(self, max_size: int = 50):
+        self.max_size = max_size
+        self._data: OrderedDict = OrderedDict()
+        self._lock = asyncio.Lock()
+
+    async def set(self, key: str, value: dict) -> None:
+        """Set key-value, evicting oldest if over capacity."""
+        async with self._lock:
+            if key in self._data:
+                del self._data[key]  # Remove to re-add at end
+            self._data[key] = value
+            # Only attempt eviction if over capacity AND dict is not empty (guards StopIteration)
+            if len(self._data) > self.max_size and len(self._data) > 1:
+                try:
+                    oldest_key = next(iter(self._data))
+                    del self._data[oldest_key]
+                except (StopIteration, KeyError):
+                    pass  # Fallback: data already within limits or key disappeared
+
+    async def get(self, key: str, default=None):
+        """Get value by key."""
+        async with self._lock:
+            return self._data.get(key, default)
+
+    async def pop(self, key: str, default=None):
+        """Remove and return value."""
+        async with self._lock:
+            return self._data.pop(key, default)
+
+    async def items(self):
+        """Get items snapshot."""
+        async with self._lock:
+            return list(self._data.items())
+
+    async def __contains__(self, key: str) -> bool:
+        """Check key existence."""
+        async with self._lock:
+            return key in self._data
+
+    async def __len__(self) -> int:
+        """Get size."""
+        async with self._lock:
+            return len(self._data)
+
+
+# ── Startup tracking (for cold-start detection) ─────────────────────────────────
+_SERVICE_START_TIME: float = time.time()
+_LAST_REQUEST_TIME: float = time.time()
+_RESTART_REASON: Optional[str] = None
+_CRASH_COUNT: int = 0
+
 # ── Queue state ───────────────────────────────────────────────────────────────
 # Initialized inside lifespan() so they are bound to uvicorn's event loop,
 # not the import-time loop (which may differ or not exist yet).
@@ -22,9 +76,9 @@ _RUN_QUEUE_CONDITION: asyncio.Condition | None = None
 _ACTIVE_REQUEST_ID: Optional[str] = None
 _WAITING_REQUEST_IDS: deque[str] = deque()
 
-# Per-request metadata keyed by request_id.
+# Per-request metadata with automatic LRU eviction (max 50 concurrent requests).
 # Stores: username, student_name (from [BOT_META] line), start_time (epoch float).
-_REQUEST_META: dict[str, dict] = {}
+_REQUEST_META: LRURequestMetadata | None = None
 
 # Live subprocess handles — keyed by request_id so DELETE /api/run/{id} can kill them.
 _ACTIVE_PROCESSES: dict[str, asyncio.subprocess.Process] = {}
@@ -32,13 +86,83 @@ _ACTIVE_PROCESSES: dict[str, asyncio.subprocess.Process] = {}
 # Estimated seconds a typical full automation run takes on the free Render tier.
 _ETA_PER_RUN_SECONDS: int = int(os.getenv("BOT_ETA_SECONDS", "90"))
 
+# Memory management: max number of concurrent request metadata entries
+_REQUEST_META_MAX_SIZE: int = int(os.getenv("REQUEST_META_MAX_SIZE", "50"))
+
+# Max age before force-cleanup (seconds) — redundant safety net
+_REQUEST_META_MAX_AGE: int = 600  # 10 minutes
+
+async def _memory_cleanup_task():
+    """Periodically garbage-collect old request metadata as safety net.
+    LRU dict handles primary cleanup; this is redundant safety."""
+    while True:
+        try:
+            await asyncio.sleep(120)  # cleanup every 2 minutes
+            if _REQUEST_META is None:
+                continue
+            now = time.time()
+            items = await _REQUEST_META.items()
+            expired = [
+                rid for rid, meta in items
+                if meta.get("start_time") and (now - meta["start_time"]) > _REQUEST_META_MAX_AGE
+            ]
+            for rid in expired:
+                await _REQUEST_META.pop(rid, None)
+            if expired:
+                print(f"[CLEANUP] Removed {len(expired)} expired request metadata entries (safety cleanup)", file=sys.stderr)
+        except Exception:
+            pass
+
 @contextlib.asynccontextmanager
 async def _lifespan(app: FastAPI):  # noqa: ARG001
     """Initialize async primitives bound to uvicorn's event loop."""
-    global _RUN_QUEUE_CONDITION
+    global _RUN_QUEUE_CONDITION, _REQUEST_META
     _RUN_QUEUE_CONDITION = asyncio.Condition()
+    _REQUEST_META = LRURequestMetadata(max_size=_REQUEST_META_MAX_SIZE)
+    
+    # Start background cleanup task
+    cleanup_task = asyncio.create_task(_memory_cleanup_task())
+    
     yield
-    # Cleanup on shutdown (nothing to clean up, but lifespan pattern is correct here)
+    
+    # Kill all active processes before shutdown (guaranteed cleanup)
+    for request_id, process in list(_ACTIVE_PROCESSES.items()):
+        if process.returncode is None:
+            try:
+                process.terminate()
+                await asyncio.wait_for(process.wait(), timeout=3)
+            except Exception:
+                try:
+                    process.kill()
+                    await process.wait()
+                except Exception:
+                    pass
+            finally:
+                # Explicitly close pipes to free OS resources (safe even if None)
+                try:
+                    if process.stdout is not None and hasattr(process.stdout, 'close'):
+                        try:
+                            process.stdout.close()
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+                
+                try:
+                    if process.stderr is not None and hasattr(process.stderr, 'close'):
+                        try:
+                            process.stderr.close()
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+    
+    # Cleanup on shutdown
+    cleanup_task.cancel()
+    try:
+        await cleanup_task
+    except asyncio.CancelledError:
+        pass
 
 
 app = FastAPI(title="LMS Auto-Feedback API", version="1.0.0", lifespan=_lifespan)
@@ -117,6 +241,7 @@ async def _queue_enter(request_id: str, username: str) -> tuple[bool, int]:
     """Return (accepted, queue_position). Position 0 means run immediately."""
     global _ACTIVE_REQUEST_ID
     assert _RUN_QUEUE_CONDITION is not None, "Queue condition not initialized (lifespan not started)"
+    assert _REQUEST_META is not None, "RequestMetadata not initialized"
 
     async with _RUN_QUEUE_CONDITION:
         meta = {
@@ -124,15 +249,16 @@ async def _queue_enter(request_id: str, username: str) -> tuple[bool, int]:
             "student_name": "",
             "start_time": None,  # set when run actually begins
         }
-        _REQUEST_META[request_id] = meta
+        await _REQUEST_META.set(request_id, meta)
 
         if _ACTIVE_REQUEST_ID is None and not _WAITING_REQUEST_IDS:
             _ACTIVE_REQUEST_ID = request_id
             meta["start_time"] = time.time()
+            await _REQUEST_META.set(request_id, meta)
             return True, 0
 
         if len(_WAITING_REQUEST_IDS) >= MAX_QUEUE_DEPTH:
-            _REQUEST_META.pop(request_id, None)
+            await _REQUEST_META.pop(request_id, None)
             return False, -1
 
         _WAITING_REQUEST_IDS.append(request_id)
@@ -167,18 +293,22 @@ async def _queue_wait_for_turn(request_id: str):
 async def _queue_exit(request_id: str) -> None:
     global _ACTIVE_REQUEST_ID
     assert _RUN_QUEUE_CONDITION is not None, "Queue condition not initialized"
+    assert _REQUEST_META is not None, "RequestMetadata not initialized"
 
     async with _RUN_QUEUE_CONDITION:
         if _ACTIVE_REQUEST_ID == request_id:
             if _WAITING_REQUEST_IDS:
                 _ACTIVE_REQUEST_ID = _WAITING_REQUEST_IDS.popleft()
                 # Record when this newly-active request actually starts running.
-                if _ACTIVE_REQUEST_ID in _REQUEST_META:
-                    _REQUEST_META[_ACTIVE_REQUEST_ID]["start_time"] = time.time()
+                if _ACTIVE_REQUEST_ID:
+                    meta = await _REQUEST_META.get(_ACTIVE_REQUEST_ID)
+                    if meta:
+                        meta["start_time"] = time.time()
+                        await _REQUEST_META.set(_ACTIVE_REQUEST_ID, meta)
             else:
                 _ACTIVE_REQUEST_ID = None
             _RUN_QUEUE_CONDITION.notify_all()
-            _REQUEST_META.pop(request_id, None)
+            await _REQUEST_META.pop(request_id, None)
             return
 
         try:
@@ -186,12 +316,54 @@ async def _queue_exit(request_id: str) -> None:
             _RUN_QUEUE_CONDITION.notify_all()
         except ValueError:
             pass
-        _REQUEST_META.pop(request_id, None)
+        await _REQUEST_META.pop(request_id, None)
 
 
-# ── SSE generator ──────────────────────────────────────────────────────────────
+# ── SSE generator with buffering for backpressure ────────────────────────────
+class SSEBuffer:
+    """Buffers SSE lines to reduce yielding overhead and provide backpressure."""
+    def __init__(self, chunk_size_bytes: int = 512):
+        self.chunk_size = max(64, chunk_size_bytes)  # Min chunk size to prevent pathological behavior
+        self.buffer = []
+        self.buffer_size = 0
+    
+    def add(self, line: str) -> list[str]:
+        """Add line to buffer; return list of chunks to yield when buffer is full."""
+        try:
+            # Safely handle encoding edge cases (bytes, non-string, etc)
+            if isinstance(line, bytes):
+                line = line.decode('utf-8', errors='replace')
+            elif not isinstance(line, str):
+                line = str(line)
+            
+            sse_line = f"data: {line}\n\n"
+            self.buffer.append(sse_line)
+            # Track actual byte size for accurate chunking
+            self.buffer_size += len(sse_line.encode('utf-8', errors='replace'))
+            
+            if self.buffer_size >= self.chunk_size:
+                return self.flush()
+            return []
+        except Exception as e:
+            # Fallback: flush on encoding error to prevent buffer corruption
+            print(f"[SSEBuffer] Error encoding line: {e}", file=sys.stderr)
+            return self.flush()
+    
+    def flush(self) -> list[str]:
+        """Flush all buffered lines."""
+        result = self.buffer
+        self.buffer = []
+        self.buffer_size = 0
+        return result
+    
+    def has_pending(self) -> bool:
+        """Check if buffer has pending data."""
+        return len(self.buffer) > 0
+
+
 async def _run_bot_generator(username: str, password: str, request_id: str, initial_position: int):
     process: asyncio.subprocess.Process | None = None
+    sse_buffer = SSEBuffer(chunk_size_bytes=512)
 
     try:
         run_headful = _env_flag("BOT_HEADFUL", False)
@@ -243,6 +415,9 @@ async def _run_bot_generator(username: str, password: str, request_id: str, init
                     timeout=STREAM_HEARTBEAT_SECONDS,
                 )
             except asyncio.TimeoutError:
+                # Flush any pending buffered logs before heartbeat
+                for buffered_line in sse_buffer.flush():
+                    yield buffered_line
                 yield "data: [HEARTBEAT]\n\n"
                 yield "data: Automation is still running...\n\n"
                 continue
@@ -254,13 +429,23 @@ async def _run_bot_generator(username: str, password: str, request_id: str, init
             # Intercept [BOT_META] lines to populate queue metadata (not sent to client).
             if "[BOT_META]" in raw_text:
                 meta_match = re.search(r"student_name=(.+)$", raw_text)
-                if meta_match and request_id in _REQUEST_META:
-                    _REQUEST_META[request_id]["student_name"] = meta_match.group(1).strip()
+                if meta_match and _REQUEST_META:
+                    meta = await _REQUEST_META.get(request_id)
+                    if meta:
+                        meta["student_name"] = meta_match.group(1).strip()
+                        await _REQUEST_META.set(request_id, meta)
                 continue  # do not forward meta lines to the SSE stream
 
             text = _sanitize_stream_line(raw_text, username=username, password=password)
             if text:
-                yield f"data: {text}\n\n"
+                # Buffer logs instead of yielding immediately for efficiency
+                chunks_to_yield = sse_buffer.add(text)
+                for chunk in chunks_to_yield:
+                    yield chunk
+
+        # Flush any remaining buffered logs at end of stream
+        for buffered_line in sse_buffer.flush():
+            yield buffered_line
 
         await process.wait()
 
@@ -276,21 +461,48 @@ async def _run_bot_generator(username: str, password: str, request_id: str, init
                 process.terminate()
                 await asyncio.wait_for(process.wait(), timeout=5)
             except Exception:
-                process.kill()
-                await process.wait()
+                try:
+                    process.kill()
+                    await process.wait()
+                except Exception:
+                    pass
         raise
     except Exception as exc:
         yield f"data: [ERROR] Server runtime failure: {exc}\n\n"
         yield "data: [FAILED]\n\n"
     finally:
+        # Guaranteed process cleanup with resource deallocation
         _ACTIVE_PROCESSES.pop(request_id, None)
         if process and process.returncode is None:
             try:
                 process.terminate()
                 await asyncio.wait_for(process.wait(), timeout=5)
             except Exception:
-                process.kill()
-                await process.wait()
+                try:
+                    process.kill()
+                    await process.wait()
+                except Exception:
+                    pass
+        
+        # Explicitly close pipes to free OS resources (safe even if None)
+        if process:
+            try:
+                if process.stdout is not None and hasattr(process.stdout, 'close'):
+                    try:
+                        process.stdout.close()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            
+            try:
+                if process.stderr is not None and hasattr(process.stderr, 'close'):
+                    try:
+                        process.stderr.close()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
 
         await _queue_exit(request_id)
 
@@ -300,7 +512,17 @@ async def _run_bot_generator(username: str, password: str, request_id: str, init
 @app.head("/")
 @app.head("/health")
 def health():
-    """Health check — used by Render and uptime monitors."""
+    """Enhanced health check with startup diagnostics for cold-start detection."""
+    global _LAST_REQUEST_TIME
+    _LAST_REQUEST_TIME = time.time()
+    
+    now = time.time()
+    uptime_seconds = now - _SERVICE_START_TIME
+    seconds_since_last_request = now - _LAST_REQUEST_TIME
+    
+    # Determine if service is cold-starting (booted <30 seconds ago)
+    is_cold_start = uptime_seconds < 30
+    
     return JSONResponse(
         {
             "status": "ok",
@@ -308,43 +530,49 @@ def health():
             "activeRun": _ACTIVE_REQUEST_ID is not None,
             "queuedRuns": len(_WAITING_REQUEST_IDS),
             "maxQueueDepth": MAX_QUEUE_DEPTH,
+            # ── Diagnostics for cold-start detection ────────────────────────────
+            "uptime_seconds": int(uptime_seconds),
+            "is_cold_start": is_cold_start,
+            "seconds_since_last_request": int(seconds_since_last_request),
+            "crash_count": _CRASH_COUNT,
+            "restart_reason": _RESTART_REASON,
         }
     )
 
 
 @app.get("/api/queue")
-def get_queue():
+async def get_queue():
     """Return live queue state for the frontend queue panel."""
     now = time.time()
 
-    def _format_entry(request_id: str, position: int) -> dict:
-        meta = _REQUEST_META.get(request_id, {})
-        start = meta.get("start_time")
+    async def _format_entry(request_id: str, position: int) -> dict:
+        meta = await _REQUEST_META.get(request_id, {}) if _REQUEST_META else {}
+        start = meta.get("start_time") if meta else None
         if position == 0 and start is not None:
             # Active run: ETA = estimated_total - elapsed (floor at 0)
             elapsed = now - start
             eta_secs = max(0, int(_ETA_PER_RUN_SECONDS - elapsed))
         else:
             # Queued: active run remaining + (position * full ETA)
-            active_meta = _REQUEST_META.get(_ACTIVE_REQUEST_ID or "", {})
-            active_start = active_meta.get("start_time")
+            active_meta = await _REQUEST_META.get(_ACTIVE_REQUEST_ID or "", {}) if _REQUEST_META and _ACTIVE_REQUEST_ID else {}
+            active_start = active_meta.get("start_time") if active_meta else None
             active_remaining = max(0, _ETA_PER_RUN_SECONDS - (now - active_start)) if active_start else _ETA_PER_RUN_SECONDS
             eta_secs = int(active_remaining + position * _ETA_PER_RUN_SECONDS)
 
         return {
             "requestId": request_id,
-            "username": meta.get("username", ""),
-            "studentName": meta.get("student_name", ""),
+            "username": meta.get("username", "") if meta else "",
+            "studentName": meta.get("student_name", "") if meta else "",
             "position": position,
             "etaSeconds": eta_secs,
         }
 
     active: dict | None = None
     if _ACTIVE_REQUEST_ID:
-        active = _format_entry(_ACTIVE_REQUEST_ID, 0)
+        active = await _format_entry(_ACTIVE_REQUEST_ID, 0)
 
     waiting = [
-        _format_entry(rid, idx + 1)
+        await _format_entry(rid, idx + 1)
         for idx, rid in enumerate(_WAITING_REQUEST_IDS)
     ]
 
@@ -409,3 +637,68 @@ async def run_bot(req: RunRequest):
         media_type="text/event-stream",
         headers=headers,
     )
+
+
+@app.get("/api/diagnostics")
+def get_diagnostics():
+    """
+    Detailed diagnostics endpoint for debugging cold-start, crashes, and service state.
+    Frontend uses this to show helpful warnings when service is unhealthy.
+    """
+    now = time.time()
+    uptime_seconds = now - _SERVICE_START_TIME
+    
+    # Define service state based on diagnostics
+    if uptime_seconds < 30:
+        service_state = "COLD_START"
+        reason = "Service was just deployed or restarted. Expect 20-30s latency."
+    elif _CRASH_COUNT > 0 and uptime_seconds < 300:
+        service_state = "RECOVERING_FROM_CRASH"
+        reason = f"Service crashed {_CRASH_COUNT} time(s) recently. Restart reason: {_RESTART_REASON}"
+    elif _ACTIVE_REQUEST_ID and len(_WAITING_REQUEST_IDS) >= 2:
+        service_state = "BUSY"
+        reason = f"Service is running {len(_WAITING_REQUEST_IDS)} queued automations."
+    else:
+        service_state = "HEALTHY"
+        reason = "Service is healthy and ready to accept requests."
+    
+    return JSONResponse(
+        {
+            "service_state": service_state,
+            "reason": reason,
+            "uptime_seconds": int(uptime_seconds),
+            "is_cold_start": uptime_seconds < 30,
+            "is_recovering": _CRASH_COUNT > 0 and uptime_seconds < 300,
+            "crash_count": _CRASH_COUNT,
+            "restart_reason": _RESTART_REASON,
+            "active_run": _ACTIVE_REQUEST_ID is not None,
+            "queued_runs": len(_WAITING_REQUEST_IDS),
+            "max_queue_depth": MAX_QUEUE_DEPTH,
+            "queue_full": len(_WAITING_REQUEST_IDS) >= MAX_QUEUE_DEPTH,
+            "seconds_since_last_request": int(now - _LAST_REQUEST_TIME),
+            "recommendations": _get_recommendations(service_state, uptime_seconds),
+        }
+    )
+
+
+def _get_recommendations(service_state: str, uptime_seconds: float) -> list[str]:
+    """Return actionable recommendations based on service state."""
+    recs = []
+    
+    if service_state == "COLD_START":
+        recs.append("Service is initializing. Wait 30-60 seconds before retrying.")
+        recs.append("This is normal after a fresh deploy or Render restart.")
+    elif service_state == "RECOVERING_FROM_CRASH":
+        recs.append("Service recently crashed. If crashes persist, check Render logs.")
+        recs.append("Verify in Render UI that 'Always On' is enabled (prevents spin-down).")
+        recs.append("Check if service memory is full: look for 'Out of Memory' errors.")
+    elif service_state == "BUSY":
+        recs.append("Queue is full. Multiple requests are queued ahead of you.")
+        recs.append("Each automation takes ~60-120 seconds. Retry in 2-3 minutes.")
+    else:
+        recs.append("✅ Service is healthy. You should be able to run now.")
+    
+    if uptime_seconds < 600:
+        recs.append("Note: Server has been up for <10 min. May have 5-10s latency.")
+    
+    return recs

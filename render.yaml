@@ -4,19 +4,17 @@ services:
     env: python
     plan: free
     buildCommand: >
-      PIP_DISABLE_PIP_VERSION_CHECK=1 pip install -r requirements.txt &&
-      PLAYWRIGHT_BROWSERS_PATH=/opt/render/project/src/.playwright-browsers python -m playwright install chromium --only-shell
-    startCommand: "uvicorn server:app --host 0.0.0.0 --port $PORT"
+      PIP_DISABLE_PIP_VERSION_CHECK=1 pip install --no-cache-dir -r requirements.txt &&
+      python -m playwright install chromium --only-shell
+    startCommand: "uvicorn server:app --host 0.0.0.0 --port $PORT --workers 1 --loop uvloop --http httptools"
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.0"
       - key: PYTHONUNBUFFERED
         value: "1"
-      - key: PLAYWRIGHT_BROWSERS_PATH
-        value: "/opt/render/project/src/.playwright-browsers"
       - key: RUN_QUEUE_MAX_DEPTH
-        value: "5"
+        value: "3"
       - key: RUN_QUEUE_HEARTBEAT_SECONDS
         value: "5"
       - key: RUN_STREAM_HEARTBEAT_SECONDS
@@ -38,7 +36,7 @@ services:
     name: collageauto-waker
     env: python
     plan: free
-    buildCommand: "PIP_DISABLE_PIP_VERSION_CHECK=1 pip install -r requirements-worker.txt"
+    buildCommand: "PIP_DISABLE_PIP_VERSION_CHECK=1 pip install --no-cache-dir -r requirements-worker.txt"
     startCommand: "python -u render_waker.py"
     envVars:
       - key: PYTHON_VERSION
@@ -48,38 +46,28 @@ services:
       - key: WAKER_TARGET_URL
         value: "https://collageautomationbot.onrender.com"
       - key: WAKER_ENDPOINTS
-        value: "/health,/"
-      # ── Timing ──────────────────────────────────────────────────────────────
-      # 600 s (10 min) — 5-minute headroom under Render's 15-min idle sleep.
+        value: "/health"
+      # ────────────────────────────────────────────────────────────────────────
+      # For Always-On paid tier (no idle spin-down), waker is light maintenance.
+      # Still pings periodically to catch cold-starts and ensure liveness logs.
+      # ────────────────────────────────────────────────────────────────────────
       - key: WAKER_INTERVAL_SECONDS
-        value: "600"
-      # 30 s — survives Render cold-boot latency (can be 20-30 s on free tier).
+        value: "1800"  # 30 min (can be longer since service stays up)
       - key: WAKER_TIMEOUT_SECONDS
-        value: "30"
-      # ── Jitter ──────────────────────────────────────────────────────────────
-      # Always fire between 30 s and 60 s EARLY, never at the exact deadline.
+        value: "10"    # reduced timeout
       - key: WAKER_MIN_JITTER_SECONDS
         value: "30"
       - key: WAKER_MAX_JITTER_SECONDS
         value: "60"
-      # ── Startup ─────────────────────────────────────────────────────────────
-      # Wait 15 s after worker starts before the first ping — lets the backend
-      # web service finish its own cold-boot so we don't race it.
       - key: WAKER_STARTUP_DELAY_SECONDS
-        value: "15"
-      # ── Retries & recovery ───────────────────────────────────────────────────
+        value: "5"
       - key: WAKER_RETRIES
-        value: "5"
+        value: "2"
       - key: WAKER_RETRY_BACKOFF_SECONDS
-        value: "5"
-      # 30 s retry after failure — recover faster than the default interval.
-      - key: WAKER_FAILURE_RETRY_SECONDS
-        value: "30"
-      # Log a CRITICAL alert after 3 consecutive failures.
-      - key: WAKER_ALERT_AFTER_FAILURES
         value: "3"
-      # ── Misc ────────────────────────────────────────────────────────────────
-      - key: WAKER_PROCESS_HEARTBEAT_SECONDS
+      - key: WAKER_FAILURE_RETRY_SECONDS
         value: "60"
-      - key: WAKER_LOG_LEVEL
-        value: "INFO"
+      - key: WAKER_ALERT_AFTER_FAILURES
+        value: "5"
+      - key: WAKER_PROCESS_HEARTBEAT_SECONDS
+        value: "300"  # heartbeat every 5 min

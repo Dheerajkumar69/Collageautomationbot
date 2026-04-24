@@ -173,7 +173,58 @@ function maskUsername(u: string): string {
   if (u.length <= 4) return u;
   return u.slice(0, 3) + "*".repeat(Math.min(u.length - 4, 4)) + u.slice(-1);
 }
+// ── Diagnostics banner component ───────────────────────────────────────────────
+function DiagnosticsBanner({ diagnostics }: { diagnostics: any }) {
+  if (!diagnostics) return null;
 
+  const { service_state, reason, is_cold_start, recommendations, uptime_seconds, crash_count } = diagnostics;
+
+  let bgColor = "bg-blue-900/40";
+  let titleColor = "text-blue-300";
+  let icon = "❄️";
+
+  if (service_state === "COLD_START") {
+    bgColor = "bg-blue-900/40";
+    titleColor = "text-blue-300";
+    icon = "❄️";
+  } else if (service_state === "RECOVERING_FROM_CRASH") {
+    bgColor = "bg-red-900/40";
+    titleColor = "text-red-300";
+    icon = "⚠️";
+  } else if (service_state === "BUSY") {
+    bgColor = "bg-amber-900/40";
+    titleColor = "text-amber-300";
+    icon = "⏱️";
+  } else if (service_state === "HEALTHY") {
+    bgColor = "bg-green-900/40";
+    titleColor = "text-green-300";
+    icon = "✅";
+  }
+
+  return (
+    <div className={`${bgColor} border border-current/20 rounded-lg p-4 mb-4 text-sm`}>
+      <div className={`${titleColor} font-semibold mb-2 flex items-center gap-2`}>
+        <span>{icon}</span>
+        <span>
+          {service_state === "HEALTHY" ? "Service Healthy" : `Service ${service_state}`}
+        </span>
+      </div>
+      <p className="text-[var(--text-dim)] mb-2">{reason}</p>
+      {recommendations && recommendations.length > 0 && (
+        <ul className="text-[var(--text-muted)] text-xs space-y-1 list-disc list-inside">
+          {recommendations.slice(0, 2).map((rec: string, i: number) => (
+            <li key={i}>{rec}</li>
+          ))}
+        </ul>
+      )}
+      {crash_count > 0 && (
+        <p className="text-red-300 text-xs mt-2">
+          ⚠️ Service has crashed {crash_count} time(s). If this persists, check Render logs.
+        </p>
+      )}
+    </div>
+  );
+}
 // ── Queue Panel component ────────────────────────────────────────────────────────────
 function QueuePanel({ queue, myUsername }: { queue: QueueData | null; myUsername: string }) {
   const active = queue?.active ?? null;
@@ -372,6 +423,33 @@ export default function Home() {
     return () => { alive = false; clearInterval(id); };
   }, []);
 
+  // ── Diagnostics polling (every 5s when idle, every 1s when connecting) ────────
+  const [diagnostics, setDiagnostics] = useState<any>(null);
+  useEffect(() => {
+    const baseUrl =
+      (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "") ||
+      "http://localhost:8000";
+
+    let alive = true;
+    const poll = async () => {
+      try {
+        const res = await fetch(`${baseUrl}/api/diagnostics`, { cache: "no-store" });
+        if (res.ok && alive) {
+          const data = await res.json();
+          setDiagnostics(data);
+        }
+      } catch {
+        // silently ignore — diagnostics is non-critical
+      }
+    };
+
+    // Poll slower when idle, faster when running to catch state changes
+    const interval = isRunning ? 1000 : 5000;
+    poll(); // immediate on mount
+    const id = setInterval(poll, interval);
+    return () => { alive = false; clearInterval(id); };
+  }, [isRunning]);
+
   const bottomRef  = useRef<HTMLDivElement>(null);
   const abortRef   = useRef<AbortController | null>(null);
   const logIdRef   = useRef(0);
@@ -384,12 +462,33 @@ export default function Home() {
   }, [logs]);
 
   const addLog = useCallback((text: string) => {
+    const MAX_LOGS = 200;  // Keep only last 200 log entries to prevent DOM bloat
+    
+    // Safeguard: ensure text is a valid string
+    const safeText = typeof text === 'string' ? text : String(text ?? '');
+    
     const entry: LogEntry = {
       id:   logIdRef.current++,
-      text,
-      kind: classifyLog(text),
+      text: safeText,
+      kind: classifyLog(safeText),
     };
-    setLogs((prev) => [...prev, entry]);
+    
+    setLogs((prev) => {
+      // Defensive check: ensure prev is array
+      const prevArray = Array.isArray(prev) ? prev : [];
+      
+      // Create new entry with proper immutability
+      const updated = [...prevArray, entry];
+      
+      // Circular buffer: keep only last MAX_LOGS entries
+      // This prevents unbounded array growth during long automation runs
+      if (updated.length > MAX_LOGS) {
+        const trimmed = updated.slice(-MAX_LOGS);
+        // Double-check result is valid array
+        return Array.isArray(trimmed) ? trimmed : updated;
+      }
+      return updated;
+    });
   }, []);
 
   // ── Copy logs to clipboard ─────────────────────────────────────────────────
@@ -683,6 +782,9 @@ export default function Home() {
             className="glass-card p-6 sm:p-8 flex flex-col gap-6 shadow-2xl animate-fade-in-up"
             style={{ animationDelay: "80ms" }}
           >
+          {/* Diagnostics banner */}
+          {diagnostics && <DiagnosticsBanner diagnostics={diagnostics} />}
+
           {/* Form */}
           <form onSubmit={handleStart} className="flex flex-col gap-5 pt-2" noValidate>
 

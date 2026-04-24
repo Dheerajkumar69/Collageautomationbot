@@ -3,6 +3,7 @@ from typing import List
 
 @dataclass
 class FeedbackItem:
+    """Represents a single feedback form entry."""
     index: int
     title: str = "Unknown"
     submitted: bool = False
@@ -11,6 +12,7 @@ class FeedbackItem:
 
 @dataclass
 class Subject:
+    """Represents a subject with pending feedback."""
     name: str
     pending_count: int = 0
     items: List[FeedbackItem] = field(default_factory=list)
@@ -18,6 +20,7 @@ class Subject:
 
 @dataclass
 class ProgressSummary:
+    """Summary of feedback automation progress."""
     total_subjects_found: int = 0
     total_pending_found: int = 0
     total_submitted: int = 0
