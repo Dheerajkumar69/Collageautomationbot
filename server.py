@@ -89,6 +89,9 @@ _ETA_PER_RUN_SECONDS: int = int(os.getenv("BOT_ETA_SECONDS", "90"))
 # Memory management: max number of concurrent request metadata entries
 _REQUEST_META_MAX_SIZE: int = int(os.getenv("REQUEST_META_MAX_SIZE", "50"))
 
+# Maximum allowed runtime for a single bot subprocess (in seconds, default 600 = 10 min)
+_BOT_MAX_RUNTIME_SECONDS: int = int(os.getenv("BOT_MAX_RUNTIME", "600"))
+
 # Max age before force-cleanup (seconds) — redundant safety net
 _REQUEST_META_MAX_AGE: int = 600  # 10 minutes
 
@@ -134,7 +137,9 @@ async def _lifespan(app: FastAPI):  # noqa: ARG001
             except Exception:
                 try:
                     process.kill()
-                    await process.wait()
+                    await asyncio.wait_for(process.wait(), timeout=3)
+                except asyncio.TimeoutError:
+                    logger.warning(f"Process {request_id} did not respond to SIGKILL during lifespan shutdown")
                 except Exception:
                     pass
             finally:
@@ -408,7 +413,20 @@ async def _run_bot_generator(username: str, password: str, request_id: str, init
 
         assert process.stdout is not None
 
+        # Track bot runtime to enforce global timeout
+        run_start_time = time.time()
+
         while True:
+            # Check if subprocess has exceeded max runtime
+            elapsed_seconds = time.time() - run_start_time
+            if elapsed_seconds > _BOT_MAX_RUNTIME_SECONDS:
+                logger.warning(f"Bot subprocess {request_id} exceeded max runtime ({_BOT_MAX_RUNTIME_SECONDS}s), terminating")
+                yield f"data: [ERROR] Automation exceeded maximum runtime ({_BOT_MAX_RUNTIME_SECONDS}s)\n\n"
+                yield "data: [FAILED]\n\n"
+                if process.returncode is None:
+                    process.terminate()
+                break
+
             try:
                 line = await asyncio.wait_for(
                     process.stdout.readline(),
@@ -460,10 +478,21 @@ async def _run_bot_generator(username: str, password: str, request_id: str, init
             try:
                 process.terminate()
                 await asyncio.wait_for(process.wait(), timeout=5)
+            except asyncio.TimeoutError:
+                logger.warning(f"Process {request_id} did not respond to terminate on cancel, forcing kill")
+                try:
+                    process.kill()
+                    await asyncio.wait_for(process.wait(), timeout=3)
+                except asyncio.TimeoutError:
+                    logger.error(f"Process {request_id} did not respond to SIGKILL on cancel")
+                except Exception:
+                    pass
             except Exception:
                 try:
                     process.kill()
-                    await process.wait()
+                    await asyncio.wait_for(process.wait(), timeout=3)
+                except asyncio.TimeoutError:
+                    logger.error(f"Process {request_id} did not respond to SIGKILL on cancel")
                 except Exception:
                     pass
         raise
@@ -477,10 +506,21 @@ async def _run_bot_generator(username: str, password: str, request_id: str, init
             try:
                 process.terminate()
                 await asyncio.wait_for(process.wait(), timeout=5)
+            except asyncio.TimeoutError:
+                logger.warning(f"Process {request_id} did not respond to terminate in finally, forcing kill")
+                try:
+                    process.kill()
+                    await asyncio.wait_for(process.wait(), timeout=3)
+                except asyncio.TimeoutError:
+                    logger.error(f"Process {request_id} did not respond to SIGKILL in finally block")
+                except Exception:
+                    pass
             except Exception:
                 try:
                     process.kill()
-                    await process.wait()
+                    await asyncio.wait_for(process.wait(), timeout=3)
+                except asyncio.TimeoutError:
+                    logger.error(f"Process {request_id} did not respond to SIGKILL in finally block")
                 except Exception:
                     pass
         
@@ -514,11 +554,13 @@ async def _run_bot_generator(username: str, password: str, request_id: str, init
 def health():
     """Enhanced health check with startup diagnostics for cold-start detection."""
     global _LAST_REQUEST_TIME
-    _LAST_REQUEST_TIME = time.time()
     
     now = time.time()
     uptime_seconds = now - _SERVICE_START_TIME
     seconds_since_last_request = now - _LAST_REQUEST_TIME
+    
+    # Update last request time AFTER computing elapsed (fixes diagnostic reporting)
+    _LAST_REQUEST_TIME = time.time()
     
     # Determine if service is cold-starting (booted <30 seconds ago)
     is_cold_start = uptime_seconds < 30

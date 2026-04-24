@@ -461,6 +461,16 @@ export default function Home() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
+  // Cleanup SSE stream on component unmount to prevent dangling connections
+  useEffect(() => {
+    return () => {
+      if (abortRef.current) {
+        abortRef.current.abort();
+        abortRef.current = null;
+      }
+    };
+  }, []);
+
   const addLog = useCallback((text: string) => {
     const MAX_LOGS = 200;  // Keep only last 200 log entries to prevent DOM bloat
     
@@ -732,9 +742,19 @@ export default function Home() {
       const baseUrl =
         (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "") ||
         "http://localhost:8000";
-      fetch(`${baseUrl}/api/run/${rid}`, { method: "DELETE" }).catch(() => {});
+      fetch(`${baseUrl}/api/run/${rid}`, { method: "DELETE" })
+        .then(r => {
+          if (!r.ok) {
+            console.warn(`Cancel failed: HTTP ${r.status}. Job may still be running on server.`);
+            addLog(`⚠️  Stop request failed (HTTP ${r.status}). Job may continue running on server.`);
+          }
+        })
+        .catch(e => {
+          console.warn("Cancel request network error:", e);
+          addLog(`⚠️  Stop request network error: ${e.message}. Job may continue running on server.`);
+        });
     }
-  }, []);
+  }, [addLog]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") { e.preventDefault(); handleStart(); }

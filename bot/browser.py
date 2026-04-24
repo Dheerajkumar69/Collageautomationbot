@@ -36,6 +36,21 @@ class BrowserManager:
         try:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
 
+            # Check AGAIN inside lock in case another process just installed it
+            try:
+                # Attempt a lightweight chromium launch to test if already installed
+                from playwright.sync_api import sync_playwright
+                test_pw = sync_playwright().start()
+                try:
+                    test_pw.chromium.launch(headless=True).close()
+                    logger.info("Chromium already installed (verified inside lock)")
+                    return  # Already installed, exit early
+                finally:
+                    test_pw.stop()
+            except Exception:
+                # Not installed or test failed, proceed with install
+                pass
+
             cmd = [sys.executable, "-m", "playwright", "install"]
             if headless:
                 # Headless shell is smaller and faster to download for server workloads.
@@ -157,28 +172,38 @@ class BrowserManager:
             self.playwright = sync_playwright().start()
             self.browser = self._launch_browser()
 
-        if self.config.headless:
-            self.context = self.browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                viewport={"width": 1920, "height": 1080},
-                screen={"width": 1920, "height": 1080},
-                timezone_id=self.config.timezone_id,
-            )
-        else:
-            self.context = self.browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                no_viewport=True,
-                timezone_id=self.config.timezone_id,
-            )
+        try:
+            if self.config.headless:
+                self.context = self.browser.new_context(
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    viewport={"width": 1920, "height": 1080},
+                    screen={"width": 1920, "height": 1080},
+                    timezone_id=self.config.timezone_id,
+                )
+            else:
+                self.context = self.browser.new_context(
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    no_viewport=True,
+                    timezone_id=self.config.timezone_id,
+                )
 
-        # Block heavyweight resources in headless mode before the first page load.
-        self._setup_resource_blocking()
+            # Block heavyweight resources in headless mode before the first page load.
+            self._setup_resource_blocking()
 
-        self.page = self.context.new_page()
-        self.page.set_default_timeout(self.config.timeout_ms)
-        self.page.set_default_navigation_timeout(self.config.navigation_timeout_ms)
-        
-        return self.page
+            self.page = self.context.new_page()
+            self.page.set_default_timeout(self.config.timeout_ms)
+            self.page.set_default_navigation_timeout(self.config.navigation_timeout_ms)
+            
+            return self.page
+        except Exception:
+            # Cleanup context if creation fails mid-way
+            if hasattr(self, 'context') and self.context:
+                try:
+                    self.context.close()
+                    logger.debug("Closed context after startup failure")
+                except Exception:
+                    pass
+            raise
 
     def clear_session(self) -> None:
         """Clear cookies and browser storage between subjects to reduce memory footprint.
